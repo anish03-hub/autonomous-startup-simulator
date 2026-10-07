@@ -1,0 +1,174 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-950 text-slate-200 font-sans antialiased;
+  margin: 0;
+}
+
+/* ---- Isometric Virtual Startup Office Scene ---------------------------------- */
+.iso-scene {
+  perspective: 2000px;
+}
+
+.iso-plane {
+  transform: rotateX(50deg) rotateZ(45deg);
+  transform-style: preserve-3d;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.iso-room {
+  transform-style: preserve-3d;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.iso-room:hover {
+  transform: translateZ(16px);
+}
+
+/* Counter-rotate room contents so labels, furniture & characters sit upright facing camera */
+.iso-upright {
+  transform: rotateZ(-45deg) rotateX(-50deg);
+  transform-style: preserve-3d;
+}
+
+/* Room Floor Textures */
+.room-floor-base {
+  background-image: 
+    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
+    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.04) 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
+.floor-ceo {
+  background-color: rgba(35, 22, 12, 0.95);
+  border-color: rgba(245, 179, 1, 0.5);
+}
+
+.floor-dev {
+  background-color: rgba(12, 28, 50, 0.95);
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.floor-marketing {
+  background-color: rgba(45, 18, 35, 0.95);
+  border-color: rgba(244, 114, 182, 0.5);
+}
+
+.floor-finance {
+  background-color: rgba(12, 40, 28, 0.95);
+  border-color: rgba(52, 211, 153, 0.5);
+}
+
+.floor-boardroom {
+  background-color: rgba(30, 18, 48, 0.95);
+  border-color: rgba(192, 132, 252, 0.6);
+}
+
+/* Corridor & Hallway Connectors */
+.corridor-v {
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  border-left: 2px dashed rgba(255, 255, 255, 0.2);
+  border-right: 2px dashed rgba(255, 255, 255, 0.2);
+}
+
+.corridor-h {
+  background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  border-top: 2px dashed rgba(255, 255, 255, 0.2);
+  border-bottom: 2px dashed rgba(255, 255, 255, 0.2);
+}
+
+/* Animations for Phase 2E.2 Human Workstation & Typing */
+@keyframes left-type-anim {
+  0%, 100% { transform: translateY(0) rotate(15deg); }
+  50% { transform: translateY(2.5px) rotate(30deg); }
+}
+
+@keyframes right-type-anim {
+  0%, 100% { transform: translateY(0) rotate(-15deg); }
+  50% { transform: translateY(2.5px) rotate(-30deg); }
+}
+
+@keyframes head-nod-anim {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  35% { transform: translateY(1.5px) rotate(2deg); }
+  70% { transform: translateY(0.5px) rotate(-1deg); }
+}
+
+@keyframes monitor-flicker {
+  0%, 100% { opacity: 0.95; }
+  50% { opacity: 0.75; filter: brightness(1.25); }
+}
+
+@keyframes key-glow-anim {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; filter: brightness(1.6); }
+}
+
+@keyframes server-led {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+@keyframes boardroom-spotlight {
+  0%, 100% { box-shadow: 0 0 50px 8px rgba(245, 179, 1, 0.5); }
+  50% { box-shadow: 0 0 85px 20px rgba(245, 179, 1, 0.8); }
+}
+
+.animate-left-typing {
+  animation: left-type-anim 0.5s infinite ease-in-out;
+}
+
+.animate-right-typing {
+  animation: right-type-anim 0.5s infinite ease-in-out 0.12s;
+}
+
+.animate-head-nod {
+  animation: head-nod-anim 3.5s infinite ease-in-out;
+}
+
+.animate-monitor-glow {
+  animation: monitor-flicker 2.2s infinite ease-in-out;
+}
+
+.animate-key-glow {
+  animation: key-glow-anim 0.6s infinite ease-in-out;
+}
+
+.animate-led {
+  animation: server-led 1.2s infinite ease-in-out;
+}
+
+.animate-boardroom-glow {
+  animation: boardroom-spotlight 2s infinite ease-in-out;
+}
+
+/* Scrollbar and Glass Utilities */
+.scroll-slim::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  @apply bg-ink-600 rounded-full;
+}
+.scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.glass {
+  @apply bg-ink-850/80 backdrop-blur border border-white/5;
+}

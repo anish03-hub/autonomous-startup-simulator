@@ -1,0 +1,60 @@
+# =====================================================================
+# Autonomous Virtual Startup Simulator - default (dev) configuration
+# Uses an in-memory H2 database so the app runs with ZERO setup.
+# For PostgreSQL, run with: --spring.profiles.active=postgres
+# =====================================================================
+server:
+  port: 8080
+
+spring:
+  application:
+    name: startup-simulator
+  datasource:
+    url: jdbc:h2:mem:startupsim;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+# CORS origins allowed to call the API. Defaults to the Vite dev server; set
+# CORS_ALLOWED_ORIGINS (comma-separated) to configure production origins.
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  simulation:
+    # Base tick interval (ms) for the mock simulation engine at 1x speed
+    tick-interval-ms: 900
+  llm:
+    # Legacy Phase 1 switch (retained for compatibility). See app.ai below.
+    provider: mock
+  ai:
+    # Which LLMService implementation to use: "mock" (default, offline, Phase 1
+    # behavior) or "openai" (real CEO analysis). Never commit a real key — set
+    # OPENAI_API_KEY in the environment.
+    provider: ${AI_PROVIDER:mock}
+    # Execution mode, independent of the provider above:
+    #   SCRIPTED_DEMO (default) — deterministic Phase 1 scripts, zero LLM calls.
+    #   REAL                    — agents must reason through a real LLM; their
+    #                             validated output is authoritative. If no real
+    #                             provider is available the analysis fails
+    #                             explicitly rather than silently fabricating.
+    mode: ${AI_MODE:SCRIPTED_DEMO}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    request-timeout-seconds: 45
+
+logging:
+  level:
+    com.startupsimulator: INFO

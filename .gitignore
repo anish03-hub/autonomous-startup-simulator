@@ -1,0 +1,26 @@
+# ---- Secrets / environment (NEVER commit API keys) ----
+.env
+.env.*
+*.local
+**/application-local.yml
+**/application-secret.yml
+secrets/
+*.pem
+*.key
+
+# ---- Java / Maven (backend) ----
+backend/target/
+*.class
+
+# ---- Node / Vite (frontend) ----
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-error.log*
+
+# ---- IDE / OS ----
+.idea/
+.vscode/
+*.iml
+.DS_Store
