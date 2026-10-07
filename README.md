@@ -22,6 +22,288 @@ The Autonomous Virtual Startup Simulator provides an end-to-end multi-agent simu
 
 ---
 
+# CA3 Development Phases
+
+This section documents the complete project progression from Phase 1 through Phase 9.
+
+| Phase | Capability | Completed By | Status |
+|---|---|---|---|
+| Phase 1 | Foundation & Initial Simulation | [@Sujitsingh9832](https://github.com/Sujitsingh9832) | ✅ COMPLETED |
+| Phase 2 | Agent Autonomy | [@anish03-hub](https://github.com/anish03-hub) | ✅ COMPLETED |
+| Phase 3 | Inter-Agent Communication | [@Pratikchy](https://github.com/Pratikchy) | ✅ COMPLETED |
+| Phase 4 | Agent-Driven Tool Use | [@Sujitsingh9832](https://github.com/Sujitsingh9832) | ✅ COMPLETED |
+| Phase 5 | Persistent Agent Memory | [@anish03-hub](https://github.com/anish03-hub) | ✅ COMPLETED |
+| Phase 6 | Dynamic Orchestration | [@Pratikchy](https://github.com/Pratikchy) | ✅ COMPLETED |
+| Phase 7 | Adaptive Execution & Replanning | [@Sujitsingh9832](https://github.com/Sujitsingh9832) | ✅ COMPLETED |
+| Phase 8 | Robustness & Recovery | — | ⏳ NOT STARTED |
+| Phase 9 | Execution Trace | — | ⏳ NOT STARTED |
+
+---
+
+## Phase 1 — Foundation & Initial Simulation
+
+**Completed by:** [@Sujitsingh9832](https://github.com/Sujitsingh9832)
+
+**Status:** ✅ COMPLETED
+
+### Details
+
+Established the core simulation architecture and user experience foundation:
+
+- Founder enters a startup idea
+- CEO department
+- Development department
+- Marketing department
+- Finance department
+- Initial startup orchestration
+- Initial agent analysis flow
+- Boardroom/debate experience
+- React + TypeScript + Vite frontend
+- Spring Boot / Java 21 backend
+- REST APIs
+- SSE event streaming
+- JPA persistence
+- H2/PostgreSQL support
+- Isometric office interface
+- Initial deterministic/mock AI reasoning architecture
+
+Phase 1 established the foundational infrastructure that subsequent phases extended into a genuinely agentic architecture.
+
+---
+
+## Phase 2 — Agent Autonomy
+
+**Completed by:** [@anish03-hub](https://github.com/anish03-hub)
+
+**Status:** ✅ COMPLETED
+
+### Details
+
+Implemented autonomous reasoning and real LLM integration:
+
+- Genuine department-level LLM reasoning
+- Typed agent analysis responses
+- CEO synthesis
+- Boardroom Debate (`POSITION` → `CHALLENGE` → `CONVERGENCE`)
+- `REAL` mode
+- `SCRIPTED_DEMO` mode
+- Explicit provider failure handling
+- Authoritative persistence
+- Structured validation
+- Real LLM reasoning replacing fixed mock reasoning
+
+---
+
+## Phase 3 — Inter-Agent Communication
+
+**Completed by:** [@Pratikchy](https://github.com/Pratikchy)
+
+**Status:** ✅ COMPLETED
+
+### Details
+
+Implemented target-addressed inter-agent communication:
+
+- Addressable `AgentMessage` (Sender, Recipient, Subject, Content, CreatedAt, Consumed/read state)
+- `AgentInbox` with recipient validation
+- Persistent agent messages saved in relational storage
+- Communication events (`AGENT_MESSAGE_SENT`, `AGENT_MESSAGE_RECEIVED`, `AGENT_MESSAGE_FAILED`)
+- Messages included in agent reasoning context to influence decisions
+- Cross-department agent communication
+
+---
+
+## Phase 4 — Agent-Driven Tool Use
+
+**Completed by:** [@Sujitsingh9832](https://github.com/Sujitsingh9832)
+
+**Status:** ✅ COMPLETED
+
+### Details
+
+#### Phase 4A — Tool Infrastructure
+- `ToolRegistry` and `ToolExecutionService`
+- Tool schema definition and validation
+- `ToolRequest` and `ToolResult` data structures
+- Domain tools: `financial_calculator`, `development_effort_estimator`, `pricing_revenue_calculator`
+- Bounded tool execution
+- Tool success and failure events
+
+#### Phase 4B — LLM Tool Selection & Execution
+- `AgentToolReasoner` integration
+- LLM dynamically chooses which tool to use
+- LLM generates valid tool arguments based on context
+- Actual registered tool executes on the backend
+- Actual result is returned to the agent
+- Agent reasons using the returned tool outputs
+- No hard-coded agent-to-tool routing
+
+---
+
+## Phase 5 — Persistent Agent Memory
+
+**Completed by:** [@anish03-hub](https://github.com/anish03-hub)
+
+**Status:** ✅ COMPLETED
+
+### Details
+
+#### Phase 5A — Persistent Storage Infrastructure
+- Persistent `AgentMemory` models
+- `AGENT_PRIVATE` memory and `STARTUP_SHARED` memory
+- `MemoryService` interface and Spring Data JPA persistence
+- Typed memory queries, Importance ratings, Source/sourceReference tracking
+- Deterministic deduplication
+- Startup isolation and agent isolation
+- Cross-run persistence across system restarts
+
+#### Phase 5B — Context Retrieval & Reasoning Integration
+- `AgentMemoryContextBuilder`
+- Automatic relevant-memory retrieval
+- Private memory prioritized before shared memory
+- Importance and recency ranking
+- Bounded memory context limits
+- Memory injected directly into reasoning prompts
+- LLM-generated memory intents
+- Bounded memory creation (created only after successful reasoning)
+- Verified cross-run persistence proof
+
+---
+
+## Phase 6 — Dynamic Orchestration
+
+**Completed by:** [@Pratikchy](https://github.com/Pratikchy)
+
+**Status:** ✅ COMPLETED
+
+### Details
+
+#### Phase 6A — Decision Engine & State Snapshots
+- `OrchestrationDecisionEngine` and `OrchestrationStateSnapshot`
+- Snapshot factory capturing current simulation state, completed/pending agents, recent messages, persistent memory, and past decisions
+- Typed orchestration decisions with server validation
+- Genuine LLM-driven decision making
+- Available actions:
+  - `RUN_AGENT`
+  - `START_DEBATE`
+  - `COMPLETE_ANALYSIS`
+
+#### Phase 6B — Dynamic Runtime Execution
+- Dynamic runtime orchestration with bounded loop execution
+- State rebuilt dynamically after every action
+- Dynamic agent ordering — no fixed `CEO → Development → Marketing → Finance` sequence
+- Actual selected agent executes based on state evaluation
+- Inter-agent communication and persistent memory affect future orchestration choices
+- Explicit runtime termination with maximum orchestration-step bound
+- Deterministic `SCRIPTED_DEMO` fallback path
+- Verified dynamic-order proof where Finance can be selected and executed directly while Development and Marketing do not execute
+
+---
+
+## Phase 7 — Adaptive Execution & Replanning
+
+**Completed by:** [@Sujitsingh9832](https://github.com/Sujitsingh9832)
+
+**Status:** ✅ COMPLETED
+
+### Details
+
+Runtime execution graph adaptation and task replanning:
+
+- Persistent `ExecutionTask` graph (ownership, priority, dependencies, lifecycle)
+- Task lifecycle states: `PENDING`, `IN_PROGRESS`, `BLOCKED`, `COMPLETED`, `DEFERRED`, `CANCELLED`
+- Structured `ReplanProposal` with `ReplanActionType` (`ADD_TASK`, `MODIFY_TASK`, `DEFER_TASK`, `CANCEL_TASK`, `CHANGE_OWNER`, `ADD_DEPENDENCY`, `REMOVE_DEPENDENCY`)
+- `ReplanValidator`, `TaskPlanMutationService`, and `ReplanEngine`
+- LLM-generated replanning with server-side validation and dependency-cycle detection
+- Bounded replanning limits and persisted database graph mutations
+
+#### Complete Adaptive Cycle Flow
+
+```
+Agent executes task
+    ↓
+Task becomes blocked
+    ↓
+Blocker is diagnosed
+    ↓
+Replan is requested
+    ↓
+LLM proposes plan change
+    ↓
+Server validates proposal
+    ↓
+Task graph is mutated
+    ↓
+New orchestration snapshot is created
+    ↓
+New task becomes executable
+    ↓
+Phase 6 selects the next agent/task
+    ↓
+Execution continues
+```
+
+#### Actual Finance Adaptive Example
+- Developer task becomes blocked because financial feasibility has not been evaluated.
+- The replan proposal:
+  - Adds a Finance validation task
+  - Defers the blocked Development task
+  - Adds the Finance task as a dependency for Development
+- Finance task becomes executable, and the Phase 6 dynamic orchestrator selects it for execution.
+
+#### Subsystem Integration & Validation
+- Fully integrated with `AgentMessage`, `AgentInbox`, persistent memory, `REAL` mode, and `SCRIPTED_DEMO` mode.
+- Replan event streaming and safety bounds.
+- Current system verification: `194/194` backend tests passing, `0` TypeScript errors, `passing` Vite production build.
+
+---
+
+## Phase 8 — Robustness & Recovery
+
+**Completed by:** —
+
+**Status:** ⏳ NOT STARTED
+
+### Details
+
+This phase is future work.
+
+Planned scope:
+- Failure classification
+- Bounded retries
+- Provider failure recovery
+- Tool failure recovery
+- Agent execution failure recovery
+- Replan failure handling
+- Duplicate execution prevention
+- Graceful termination
+- Circuit breakers where appropriate
+
+---
+
+## Phase 9 — Execution Trace
+
+**Completed by:** —
+
+**Status:** ⏳ NOT STARTED
+
+### Details
+
+This phase is future work.
+
+Planned scope:
+- Richer execution trace
+- Agent decision history
+- Tool invocation history
+- Communication history
+- Memory retrieval history
+- Orchestration decisions
+- Replanning decisions
+- Task lifecycle trace
+- Evaluator-friendly execution evidence
+
+---
+
 ## Current Agent Architecture
 
 The simulator consists of four specialized department agents:
@@ -190,19 +472,6 @@ orchestration continues
 - **Backend:** 194/194 tests passing
 - **TypeScript:** 0 errors
 - **Vite production build:** passing
-
----
-
-## CA3 Implementation Phase Roadmap
-
-- [x] **Phase 2 — Agent autonomy**
-- [x] **Phase 3 — Agent communication**
-- [x] **Phase 4 — Tool use**
-- [x] **Phase 5 — Persistent memory**
-- [x] **Phase 6 — Dynamic orchestration**
-- [x] **Phase 7 — Adaptive execution & replanning**
-- [ ] **Phase 8 — Robustness and recovery** *(Future work)*
-- [ ] **Phase 9 — Execution trace redesign** *(Future work)*
 
 ---
 
