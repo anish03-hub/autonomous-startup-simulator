@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
  * no {@code @Primary} tie-break is required.
  */
 @Service
-@ConditionalOnProperty(prefix = "app.ai", name = "provider", havingValue = "mock", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "app.ai", name = "provider", havingValue = "mock")
 public class MockLLMService implements LLMService {
 
     @Override

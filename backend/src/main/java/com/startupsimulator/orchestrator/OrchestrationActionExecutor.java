@@ -50,9 +50,18 @@ import java.util.Map;
  * <p>The same path serves REAL and SCRIPTED_DEMO (requirement 14): the mode only
  * changes what each agent does internally, never how the executor runs it.
  */
+import com.startupsimulator.agent.recovery.AgentRecoveryEngine;
+import com.startupsimulator.agent.recovery.AgentRecoveryOutcome;
+import com.startupsimulator.agent.recovery.AgentRecoveryRequest;
+import com.startupsimulator.trace.ExecutionTraceService;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class OrchestrationActionExecutor {
 
     private final AgentService agentService;
@@ -66,6 +75,36 @@ public class OrchestrationActionExecutor {
     private final FinanceAgent financeAgent;
 
     private final com.startupsimulator.orchestrator.BoardroomDebate boardroomDebate;
+    private final AgentRecoveryEngine recoveryEngine;
+    private final ExecutionTraceService traceService;
+
+    public OrchestrationActionExecutor(AgentService agentService, EventService eventService,
+                                       AgentInbox agentInbox, AgentMemoryContextBuilder memoryContextBuilder,
+                                       CeoAgent ceoAgent, DeveloperAgent developerAgent,
+                                       MarketingAgent marketingAgent, FinanceAgent financeAgent,
+                                       com.startupsimulator.orchestrator.BoardroomDebate boardroomDebate) {
+        this(agentService, eventService, agentInbox, memoryContextBuilder, ceoAgent, developerAgent, marketingAgent, financeAgent, boardroomDebate, null, null);
+    }
+
+    @Autowired
+    public OrchestrationActionExecutor(AgentService agentService, EventService eventService,
+                                       AgentInbox agentInbox, AgentMemoryContextBuilder memoryContextBuilder,
+                                       CeoAgent ceoAgent, DeveloperAgent developerAgent,
+                                       MarketingAgent marketingAgent, FinanceAgent financeAgent,
+                                       com.startupsimulator.orchestrator.BoardroomDebate boardroomDebate,
+                                       AgentRecoveryEngine recoveryEngine, ExecutionTraceService traceService) {
+        this.agentService = agentService;
+        this.eventService = eventService;
+        this.agentInbox = agentInbox;
+        this.memoryContextBuilder = memoryContextBuilder;
+        this.ceoAgent = ceoAgent;
+        this.developerAgent = developerAgent;
+        this.marketingAgent = marketingAgent;
+        this.financeAgent = financeAgent;
+        this.boardroomDebate = boardroomDebate;
+        this.recoveryEngine = recoveryEngine;
+        this.traceService = traceService;
+    }
 
     /**
      * The result of running exactly one agent: enough for the orchestrator to
@@ -131,10 +170,23 @@ public class OrchestrationActionExecutor {
                     "CEO analysis via " + outcome.provider()
                             + " failed — no analysis was produced in REAL mode. Retry available.",
                     agentPayload(AgentType.CEO, AgentState.WORKING, outcome.error()));
+            if (traceService != null) {
+                traceService.recordFailure(id, null, AgentType.CEO, "ANALYSIS_FAILED", outcome.error());
+            }
+            if (recoveryEngine != null) {
+                AgentRecoveryRequest req = new AgentRecoveryRequest(
+                        id, AgentType.CEO, "CEO_ANALYSIS", "LLM_FAILURE", outcome.error(),
+                        ctx.summary()
+                );
+                recoveryEngine.attemptRecovery(req);
+            }
         } else {
             eventService.record(id, EventType.CEO_ANALYSIS_COMPLETED,
                     "CEO completed the strategic analysis.",
                     agentPayload(AgentType.CEO, AgentState.WORKING, outcome.provider()));
+            if (traceService != null) {
+                traceService.recordAgentAction(id, null, AgentType.CEO, "ANALYSIS", outcome.headlineMessage(), outcome.provider());
+            }
         }
         return new AgentExecution(AgentType.CEO, outcome.failed(), outcome.headlineMessage(), outcome.provider());
     }
@@ -178,10 +230,23 @@ public class OrchestrationActionExecutor {
                     type.getDisplayName() + " analysis via " + outcome.provider()
                             + " failed — no analysis was produced in REAL mode. Retry available.",
                     agentPayload(type, AgentState.WORKING, outcome.error()));
+            if (traceService != null) {
+                traceService.recordFailure(id, null, type, "ANALYSIS_FAILED", outcome.error());
+            }
+            if (recoveryEngine != null) {
+                AgentRecoveryRequest req = new AgentRecoveryRequest(
+                        id, type, type.name() + "_ANALYSIS", "LLM_FAILURE", outcome.error(),
+                        ctx.summary()
+                );
+                recoveryEngine.attemptRecovery(req);
+            }
         } else {
             eventService.record(id, EventType.AGENT_ANALYSIS_COMPLETED,
                     type.getDisplayName() + " completed its analysis.",
                     agentPayload(type, AgentState.WORKING, outcome.provider()));
+            if (traceService != null) {
+                traceService.recordAgentAction(id, null, type, "ANALYSIS", outcome.headlineMessage(), outcome.provider());
+            }
         }
         return new AgentExecution(type, outcome.failed(), outcome.headlineMessage(), outcome.provider());
     }

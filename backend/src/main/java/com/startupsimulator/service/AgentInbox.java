@@ -34,15 +34,29 @@ import java.util.Optional;
  * once per analysis phase; the debate is a fixed three rounds) — there is no
  * open-ended autonomous conversation loop.</p>
  */
+import com.startupsimulator.trace.ExecutionTraceService;
+import org.springframework.beans.factory.annotation.Autowired;
+
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AgentInbox {
 
     private static final String DIRECT = "DIRECT";
 
     private final AgentMessageRepository messageRepository;
     private final EventService eventService;
+    private final ExecutionTraceService traceService;
+
+    public AgentInbox(AgentMessageRepository messageRepository, EventService eventService) {
+        this(messageRepository, eventService, null);
+    }
+
+    @Autowired
+    public AgentInbox(AgentMessageRepository messageRepository, EventService eventService, ExecutionTraceService traceService) {
+        this.messageRepository = messageRepository;
+        this.eventService = eventService;
+        this.traceService = traceService;
+    }
 
     /**
      * Resolve a free-form recipient string (as chosen by an agent's LLM) to a
@@ -101,6 +115,39 @@ public class AgentInbox {
                 Map.of("messageId", saved.getId(),
                         "sender", sender.name(),
                         "recipient", recipient.get().name()));
+
+        if (traceService != null) {
+            traceService.recordAgentMessage(startupId, null, sender, recipient.get(),
+                    intent.normalizedSubject() != null ? intent.normalizedSubject() : "MESSAGE_SENT",
+                    intent.normalizedMessage());
+        }
+
+        return Optional.of(saved);
+    }
+
+    /**
+     * Direct programmatic helper to persist and deliver an AgentMessage between agents (e.g. for recovery handoffs).
+     */
+    @Transactional
+    public Optional<AgentMessage> sendMessage(Long startupId, AgentType sender, AgentType recipient, String type, String subject, String content) {
+        if (startupId == null || sender == null || recipient == null) {
+            return Optional.empty();
+        }
+        AgentMessage message = new AgentMessage(startupId, sender, recipient, subject, content);
+        message.setMessageType(type != null ? type : DIRECT);
+        message.setConsumed(false);
+        AgentMessage saved = messageRepository.save(message);
+
+        eventService.record(startupId, EventType.AGENT_MESSAGE_SENT,
+                sender.getDisplayName() + " → " + recipient.getDisplayName()
+                        + (subject == null ? "" : ": " + subject),
+                Map.of("messageId", saved.getId(),
+                        "sender", sender.name(),
+                        "recipient", recipient.name()));
+
+        if (traceService != null) {
+            traceService.recordAgentMessage(startupId, null, sender, recipient, subject != null ? subject : type, content);
+        }
         return Optional.of(saved);
     }
 
@@ -124,6 +171,10 @@ public class AgentInbox {
                     Map.of("messageId", m.getId(),
                             "sender", m.getAgentType().name(),
                             "recipient", recipient.name()));
+
+            if (traceService != null) {
+                traceService.recordAgentMessage(startupId, null, m.getAgentType(), recipient, "MESSAGE_RECEIVED", m.getContent());
+            }
         }
         ctx.deliverInbox(recipient, unread);
         ctx.recordSent(recipient, messageRepository

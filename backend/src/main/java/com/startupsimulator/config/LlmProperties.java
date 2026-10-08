@@ -5,14 +5,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Provider-independent LLM configuration, bound from {@code app.ai.*}. Secrets
  * (the API key) come from environment variables — never hard-coded, never
- * committed. Phase 2A ships the {@code openai} provider; adding Anthropic or
- * Gemini means adding a provider block and an {@code LLMService} implementation,
- * not touching agent code.
+ * committed. Ships with {@code justdowork} (Claude Opus 4.8 via API gateway) and
+ * {@code openai} providers.
  *
  * <pre>
  * app:
  *   ai:
- *     provider: openai        # "mock" (default, offline) or "openai"
+ *     provider: justdowork    # "justdowork" (default), "openai", or "mock"
+ *     justdowork:
+ *       api-key: ${JUSTDOWORK_API_KEY}
+ *       model:   ${JUSTDOWORK_MODEL:claude-opus-4-8}
+ *       base-url:${JUSTDOWORK_BASE_URL:https://api.justwoker.icu/v1}
  *     openai:
  *       api-key: ${OPENAI_API_KEY}
  *       model:   ${OPENAI_MODEL:gpt-4o-mini}
@@ -22,17 +25,21 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.ai")
 public class LlmProperties {
 
-    /** Active provider: {@code mock} (default) or {@code openai}. */
-    private String provider = "mock";
+    /** Active provider: {@code justdowork} (production default bound via application.yml). */
+    private String provider = "justdowork";
 
     /**
-     * Execution mode, independent of provider availability. Default
-     * {@link AiExecutionMode#SCRIPTED_DEMO} keeps un-configured environments and
-     * all tests offline-safe. Set {@code REAL} to require genuine LLM reasoning.
+     * Execution mode. Spring binds this from {@code app.ai.mode} (default {@code REAL} in application.yml).
      */
     private AiExecutionMode mode = AiExecutionMode.SCRIPTED_DEMO;
 
+    private final JustDoWork justdowork = new JustDoWork();
+
     private final OpenAi openai = new OpenAi();
+
+    private final Gemini gemini = new Gemini();
+
+    private final Resilience resilience = new Resilience();
 
     /** Overall request timeout for a single LLM call. */
     private int requestTimeoutSeconds = 45;
@@ -58,8 +65,20 @@ public class LlmProperties {
         return mode == AiExecutionMode.REAL;
     }
 
+    public JustDoWork getJustdowork() {
+        return justdowork;
+    }
+
     public OpenAi getOpenai() {
         return openai;
+    }
+
+    public Gemini getGemini() {
+        return gemini;
+    }
+
+    public Resilience getResilience() {
+        return resilience;
     }
 
     public int getRequestTimeoutSeconds() {
@@ -70,10 +89,102 @@ public class LlmProperties {
         this.requestTimeoutSeconds = requestTimeoutSeconds;
     }
 
+    /** True only when a non-blank API key has been supplied for JustDoWork. */
+    public boolean isJustDoWorkConfigured() {
+        return "justdowork".equalsIgnoreCase(provider)
+                && justdowork.getApiKey() != null && !justdowork.getApiKey().isBlank();
+    }
+
     /** True only when a non-blank API key has been supplied for OpenAI. */
     public boolean isOpenAiConfigured() {
         return "openai".equalsIgnoreCase(provider)
                 && openai.getApiKey() != null && !openai.getApiKey().isBlank();
+    }
+
+    /** True only when a non-blank API key has been supplied for Gemini. */
+    public boolean isGeminiConfigured() {
+        return "gemini".equalsIgnoreCase(provider)
+                && gemini.getApiKey() != null && !gemini.getApiKey().isBlank();
+    }
+
+    public static class Resilience {
+        private int maxAttempts = 3;
+        private long initialBackoffMs = 250;
+        private double backoffMultiplier = 2.0;
+        private long maxBackoffMs = 2000;
+
+        public int getMaxAttempts() { return maxAttempts; }
+        public void setMaxAttempts(int maxAttempts) { this.maxAttempts = maxAttempts; }
+        public long getInitialBackoffMs() { return initialBackoffMs; }
+        public void setInitialBackoffMs(long initialBackoffMs) { this.initialBackoffMs = initialBackoffMs; }
+        public double getBackoffMultiplier() { return backoffMultiplier; }
+        public void setBackoffMultiplier(double backoffMultiplier) { this.backoffMultiplier = backoffMultiplier; }
+        public long getMaxBackoffMs() { return maxBackoffMs; }
+        public void setMaxBackoffMs(long maxBackoffMs) { this.maxBackoffMs = maxBackoffMs; }
+
+        public com.startupsimulator.resilience.RetryPolicy toRetryPolicy() {
+            return new com.startupsimulator.resilience.RetryPolicy(maxAttempts, initialBackoffMs, backoffMultiplier, maxBackoffMs);
+        }
+    }
+
+    public static class Gemini {
+        private String apiKey;
+        private String model = "gemini-3.8-flash";
+        private String baseUrl = "https://generativelanguage.googleapis.com/v1beta";
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
+        }
+
+        public String getModel() {
+            return model;
+        }
+
+        public void setModel(String model) {
+            this.model = model;
+        }
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+    }
+
+    public static class JustDoWork {
+        private String apiKey;
+        private String model = "claude-opus-4-8";
+        private String baseUrl = "https://api.justwoker.icu/v1";
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
+        }
+
+        public String getModel() {
+            return model;
+        }
+
+        public void setModel(String model) {
+            this.model = model;
+        }
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
     }
 
     public static class OpenAi {
@@ -106,3 +217,4 @@ public class LlmProperties {
         }
     }
 }
+

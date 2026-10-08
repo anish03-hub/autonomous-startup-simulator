@@ -79,6 +79,10 @@ public class StartupContext {
         return startup.getName();
     }
 
+    public String summary() {
+        return "Startup #" + startupId() + " (" + (startupName() != null ? startupName() : "Unnamed") + "): " + (idea() != null ? idea() : "");
+    }
+
     public void addFeature(MvpFeature feature) {
         feature.setDisplayOrder(mvpFeatures.size());
         mvpFeatures.add(feature);

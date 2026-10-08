@@ -36,6 +36,19 @@ import java.util.Map;
  * decisions exist ONLY in SCRIPTED_DEMO (requirement 13), structurally isolated in
  * {@link #scriptedDecision} and never reachable from the REAL branch.
  */
+import com.startupsimulator.trace.ExecutionTraceService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 @Service
 public class OrchestrationDecisionEngine {
 
@@ -48,14 +61,23 @@ public class OrchestrationDecisionEngine {
     private final LlmProperties llmProperties;
     private final OrchestrationDecisionValidator validator;
     private final EventService eventService;
+    private final ExecutionTraceService traceService;
     private final String systemPrompt;
 
     public OrchestrationDecisionEngine(LLMService llm, LlmProperties llmProperties,
                                        OrchestrationDecisionValidator validator, EventService eventService) {
+        this(llm, llmProperties, validator, eventService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public OrchestrationDecisionEngine(LLMService llm, LlmProperties llmProperties,
+                                       OrchestrationDecisionValidator validator, EventService eventService,
+                                       ExecutionTraceService traceService) {
         this.llm = llm;
         this.llmProperties = llmProperties;
         this.validator = validator;
         this.eventService = eventService;
+        this.traceService = traceService;
         this.systemPrompt = loadPrompt("prompts/orchestration-system-prompt.txt");
     }
 
@@ -107,10 +129,23 @@ public class OrchestrationDecisionEngine {
         OrchestrationValidation v = validator.validate(decision, snapshot);
         if (!v.valid()) {
             emitRejected(id, decision, v.reason(), usedRealLlm);
+            if (traceService != null && id != null) {
+                traceService.recordOrchestrationDecision(id, null, decision != null ? parseAgentType(decision.targetAgent()) : null,
+                        decision != null ? decision.action() : "REJECTED",
+                        decision != null ? decision.reason() : v.reason(),
+                        v.reason(), false, v.reason());
+            }
             return OrchestrationDecisionOutcome.rejected(decision, v.reason(), usedRealLlm);
         }
         String headline = describe(v);
         emitAccepted(id, decision, v, usedRealLlm);
+        if (traceService != null && id != null) {
+            traceService.recordOrchestrationDecision(id, null, v.resolvedAgent(),
+                    v.action().name(),
+                    decision != null ? decision.reason() : headline,
+                    decision != null ? decision.rationale() : headline,
+                    true, null);
+        }
         return OrchestrationDecisionOutcome.accepted(decision, v.action(), v.resolvedAgent(), headline, usedRealLlm);
     }
 
@@ -311,6 +346,15 @@ public class OrchestrationDecisionEngine {
             return e.getClass().getSimpleName();
         }
         return msg.length() > 200 ? msg.substring(0, 200) : msg;
+    }
+
+    private static AgentType parseAgentType(String name) {
+        if (name == null || name.isBlank()) return null;
+        try {
+            return AgentType.valueOf(name.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private String loadPrompt(String path) {

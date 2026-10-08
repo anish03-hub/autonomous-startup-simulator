@@ -126,5 +126,18 @@ public enum EventType {
     REPLAN_REJECTED,
     TASK_MODIFIED,
     TASK_DEFERRED,
-    TASK_CANCELLED
+    TASK_CANCELLED,
+
+    // ---- Phase 8A: retry + backoff resilience infrastructure ----------------
+    LLM_RETRY_ATTEMPTED,
+    LLM_RETRY_EXHAUSTED,
+
+    // ---- Phase 8B / Section A: Agent recovery & failure adaptation -----------
+    AGENT_RECOVERY_REQUESTED,
+    AGENT_RECOVERY_STARTED,
+    AGENT_RECOVERY_HANDOFF,
+    AGENT_RECOVERY_SUCCEEDED,
+    AGENT_RECOVERY_FAILED
 }
+
+

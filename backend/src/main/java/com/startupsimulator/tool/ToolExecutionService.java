@@ -43,6 +43,22 @@ import java.util.concurrent.TimeoutException;
  * <p>This layer deliberately contains NO tool-selection logic: it does not decide
  * which tool an agent should use. That is Phase 4B.
  */
+import com.startupsimulator.model.enums.AgentType;
+import com.startupsimulator.trace.ExecutionTraceService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 @Service
 public class ToolExecutionService {
 
@@ -51,27 +67,27 @@ public class ToolExecutionService {
 
     private final ToolRegistry registry;
     private final EventService eventService;
+    private final ExecutionTraceService traceService;
     private final long timeoutMillis;
     private final ExecutorService executor;
 
-    /**
-     * The constructor Spring uses for dependency injection. It is annotated
-     * explicitly because this class exposes a second (timeout-overriding)
-     * constructor: when a bean class declares more than one constructor and none
-     * is marked {@code @Autowired}, Spring will not guess which to use and falls
-     * back to a no-arg constructor, which does not exist here — producing
-     * "No default constructor found" at {@code ToolExecutionService.<init>} during
-     * context startup. Marking this one resolves that unambiguously; the three-arg
-     * constructor stays available for an explicit timeout.
-     */
-    @Autowired
     public ToolExecutionService(ToolRegistry registry, EventService eventService) {
-        this(registry, eventService, DEFAULT_TIMEOUT_MILLIS);
+        this(registry, eventService, null, DEFAULT_TIMEOUT_MILLIS);
     }
 
     public ToolExecutionService(ToolRegistry registry, EventService eventService, long timeoutMillis) {
+        this(registry, eventService, null, timeoutMillis);
+    }
+
+    @Autowired
+    public ToolExecutionService(ToolRegistry registry, EventService eventService, ExecutionTraceService traceService) {
+        this(registry, eventService, traceService, DEFAULT_TIMEOUT_MILLIS);
+    }
+
+    public ToolExecutionService(ToolRegistry registry, EventService eventService, ExecutionTraceService traceService, long timeoutMillis) {
         this.registry = registry;
         this.eventService = eventService;
+        this.traceService = traceService;
         this.timeoutMillis = timeoutMillis;
         this.executor = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "tool-exec");
@@ -117,6 +133,12 @@ public class ToolExecutionService {
         emit(EventType.TOOL_EXECUTION_STARTED, request,
                 "Tool '" + tool.name() + "' execution started.", null);
 
+        if (traceService != null) {
+            AgentType agent = parseAgentType(request.requestingAgent());
+            Map<String, Object> argsMap = request.arguments() != null ? request.arguments().asMap() : Map.of();
+            traceService.recordToolCall(request.startupId(), null, agent, tool.name(), argsMap, "Agent requested tool execution");
+        }
+
         // ---- 4. Bounded execution + outer guard (defense in depth) -----------
         ToolResult result = runBounded(tool, request, context);
 
@@ -132,6 +154,15 @@ public class ToolExecutionService {
             emit(EventType.TOOL_EXECUTION_FAILED, request,
                     "Tool '" + tool.name() + "' failed: " + result.errorCode() + ".", payload);
         }
+
+        if (traceService != null) {
+            AgentType agent = parseAgentType(request.requestingAgent());
+            String outputStr = result.isSuccess()
+                    ? (result.result() != null ? result.result().toString() : "SUCCESS")
+                    : result.errorMessage();
+            traceService.recordToolResult(request.startupId(), null, agent, tool.name(), result.isSuccess(), outputStr);
+        }
+
         return result;
     }
 
@@ -182,5 +213,14 @@ public class ToolExecutionService {
 
     private static long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
+    }
+
+    private static AgentType parseAgentType(String name) {
+        if (name == null) return null;
+        try {
+            return AgentType.valueOf(name.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

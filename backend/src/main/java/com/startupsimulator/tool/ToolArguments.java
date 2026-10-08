@@ -42,6 +42,10 @@ public final class ToolArguments {
         return raw.get(key) != null;
     }
 
+    public Map<String, Object> asMap() {
+        return java.util.Collections.unmodifiableMap(raw);
+    }
+
     /** The underlying key set — used only for metadata/diagnostics, never for execution logic. */
     public java.util.Set<String> keys() {
         return java.util.Collections.unmodifiableSet(raw.keySet());
