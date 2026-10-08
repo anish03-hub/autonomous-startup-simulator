@@ -103,6 +103,10 @@ public class FakeLLMService implements LLMService {
         } else {
             response = canned;
         }
+        if (response instanceof Throwable t) {
+            if (t instanceof RuntimeException re) throw re;
+            throw new CeoAnalysisException("Simulated LLM failure", t);
+        }
         if (response == null || response == FAILURE) {
             throw new CeoAnalysisException("Simulated LLM failure.");
         }

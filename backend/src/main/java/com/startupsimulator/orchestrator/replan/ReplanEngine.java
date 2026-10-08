@@ -24,6 +24,22 @@ import java.util.*;
  * {@link ReplanProposal} (or uses a deterministic proposal in SCRIPTED_DEMO), validates
  * it via {@link ReplanValidator}, and applies it to the DB via {@link TaskPlanMutationService}.
  */
+import com.startupsimulator.trace.ExecutionTraceService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+/**
+ * CA3 Phase 7: The adaptive replanning engine. When execution encounters a blocker or
+ * new requirement, it diagnoses the situation, prompts the LLM for a structured
+ * {@link ReplanProposal} (or uses a deterministic proposal in SCRIPTED_DEMO), validates
+ * it via {@link ReplanValidator}, and applies it to the DB via {@link TaskPlanMutationService}.
+ */
 @Slf4j
 @Service
 public class ReplanEngine {
@@ -36,17 +52,26 @@ public class ReplanEngine {
     private final TaskPlanMutationService mutationService;
     private final ExecutionTaskRepository taskRepository;
     private final EventService eventService;
+    private final ExecutionTraceService traceService;
     private final String systemPrompt;
 
     public ReplanEngine(LLMService llm, LlmProperties llmProperties, ReplanValidator validator,
                         TaskPlanMutationService mutationService, ExecutionTaskRepository taskRepository,
                         EventService eventService) {
+        this(llm, llmProperties, validator, mutationService, taskRepository, eventService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ReplanEngine(LLMService llm, LlmProperties llmProperties, ReplanValidator validator,
+                        TaskPlanMutationService mutationService, ExecutionTaskRepository taskRepository,
+                        EventService eventService, ExecutionTraceService traceService) {
         this.llm = llm;
         this.llmProperties = llmProperties;
         this.validator = validator;
         this.mutationService = mutationService;
         this.taskRepository = taskRepository;
         this.eventService = eventService;
+        this.traceService = traceService;
         this.systemPrompt = loadPrompt("prompts/replan-system-prompt.txt");
     }
 
@@ -118,11 +143,23 @@ public class ReplanEngine {
             eventService.record(startupId, EventType.REPLAN_REJECTED,
                     "Replan proposal rejected: " + validation.reason(),
                     Map.of("reason", validation.reason()));
+
+            if (traceService != null) {
+                traceService.recordReplan(startupId, null, null, triggeringTaskId, blockerReason,
+                        proposal != null ? proposal.reasonOrEmpty() : validation.reason(), false, validation.reason());
+            }
+
             return validation;
         }
 
         // Apply validated mutation to persistent task graph
         mutationService.applyReplan(startupId, proposal);
+
+        if (traceService != null) {
+            traceService.recordReplan(startupId, null, null, triggeringTaskId, blockerReason,
+                    proposal != null ? proposal.reasonOrEmpty() : "Replan accepted", true, null);
+        }
+
         return validation;
     }
 

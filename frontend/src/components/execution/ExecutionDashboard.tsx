@@ -88,9 +88,9 @@ export default function ExecutionDashboard() {
   return (
     <div className="space-y-6 select-none">
       {/* Top Header & Simulation Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800 shadow-xl">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800 shadow-xl">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex shrink-0 items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700">
             <span className="text-xl">📅</span>
             <div>
               <div className="text-xs text-slate-400 uppercase tracking-wider font-bold">Simulation Time</div>
@@ -98,30 +98,30 @@ export default function ExecutionDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isCompleted ? (
-              <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center gap-1.5">
+              <span className="shrink-0 px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 Execution Completed
               </span>
             ) : isPaused ? (
-              <span className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5">
+              <span className="shrink-0 px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
                 Paused
               </span>
             ) : isRunning ? (
-              <span className="px-3 py-1.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-bold flex items-center gap-1.5 animate-pulse">
+              <span className="shrink-0 px-3 py-1.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-bold flex items-center gap-1.5 animate-pulse">
                 <span className="w-2 h-2 rounded-full bg-cyan-400" />
                 Active Execution
               </span>
             ) : (
-              <span className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold">
+              <span className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold">
                 Ready
               </span>
             )}
 
             {activeBlockerCount > 0 && (
-              <span className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 animate-bounce">
+              <span className="shrink-0 px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 animate-bounce">
                 ⚠️ {activeBlockerCount} Blocker{activeBlockerCount > 1 ? "s" : ""}
               </span>
             )}
@@ -129,11 +129,11 @@ export default function ExecutionDashboard() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {!isRunning && !isPaused && !isCompleted && (
             <button
               onClick={() => void startExecution()}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
+              className="shrink-0 whitespace-nowrap px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
             >
               ▶️ Start Execution
             </button>
@@ -142,7 +142,7 @@ export default function ExecutionDashboard() {
           {isRunning && (
             <button
               onClick={() => void pauseExecution()}
-              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition"
+              className="shrink-0 whitespace-nowrap px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition"
             >
               ⏸️ Pause
             </button>
@@ -151,7 +151,7 @@ export default function ExecutionDashboard() {
           {isPaused && (
             <button
               onClick={() => void resumeExecution()}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
+              className="shrink-0 whitespace-nowrap px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
             >
               ▶️ Resume
             </button>
@@ -159,7 +159,7 @@ export default function ExecutionDashboard() {
 
           <button
             onClick={() => void stepExecution()}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+            className="shrink-0 whitespace-nowrap px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
           >
             ⏩ Advance +1 Day
           </button>

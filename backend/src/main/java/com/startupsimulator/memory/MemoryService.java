@@ -29,6 +29,15 @@ import java.util.Map;
  * <p>Phase 5A is infrastructure only: nothing here is wired into agent reasoning,
  * no prompt injection, and memory creation is always an explicit caller action.
  */
+import com.startupsimulator.trace.ExecutionTraceService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+
 @Slf4j
 @Service
 public class MemoryService {
@@ -42,10 +51,17 @@ public class MemoryService {
 
     private final AgentMemoryRepository repository;
     private final EventService eventService;
+    private final ExecutionTraceService traceService;
 
     public MemoryService(AgentMemoryRepository repository, EventService eventService) {
+        this(repository, eventService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MemoryService(AgentMemoryRepository repository, EventService eventService, ExecutionTraceService traceService) {
         this.repository = repository;
         this.eventService = eventService;
+        this.traceService = traceService;
     }
 
     // ---- Creation -----------------------------------------------------------
@@ -85,6 +101,13 @@ public class MemoryService {
                         "agent", request.agentType().name(),
                         "scope", request.scope().name(),
                         "memoryType", request.memoryType().name()));
+
+        if (traceService != null) {
+            traceService.recordMemoryCreation(request.startupId(), null, request.agentType(),
+                    request.memoryType().name(), request.scope().name(), request.importance(),
+                    request.source(), saved.getId());
+        }
+
         return MemoryRecord.from(saved);
     }
 
@@ -101,8 +124,12 @@ public class MemoryService {
             retrievalFailed(startupId, "An agent-specific memory retrieval requires a non-null agent.");
             return List.of();
         }
-        return project(repository.findByStartupIdAndScopeAndAgentTypeOrderByCreatedAtDescIdDesc(
+        List<MemoryRecord> records = project(repository.findByStartupIdAndScopeAndAgentTypeOrderByCreatedAtDescIdDesc(
                 startupId, MemoryScope.AGENT_PRIVATE, agentType));
+        if (traceService != null) {
+            traceService.recordMemoryRetrieval(startupId, null, agentType, MemoryScope.AGENT_PRIVATE.name(), records.size(), "Private agent memory retrieval");
+        }
+        return records;
     }
 
     /** The startup's shared memories (the one canonical row per shared memory), newest first. */
@@ -112,8 +139,12 @@ public class MemoryService {
             log.warn("Memory retrieval rejected: null startupId.");
             return List.of();
         }
-        return project(repository.findByStartupIdAndScopeOrderByCreatedAtDescIdDesc(
+        List<MemoryRecord> records = project(repository.findByStartupIdAndScopeOrderByCreatedAtDescIdDesc(
                 startupId, MemoryScope.STARTUP_SHARED));
+        if (traceService != null) {
+            traceService.recordMemoryRetrieval(startupId, null, null, MemoryScope.STARTUP_SHARED.name(), records.size(), "Startup shared memory retrieval");
+        }
+        return records;
     }
 
     /** Recent memories for a startup across all scopes/agents, newest first, bounded. */

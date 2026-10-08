@@ -38,22 +38,29 @@ app:
     # Legacy Phase 1 switch (retained for compatibility). See app.ai below.
     provider: mock
   ai:
-    # Which LLMService implementation to use: "mock" (default, offline, Phase 1
-    # behavior) or "openai" (real CEO analysis). Never commit a real key — set
-    # OPENAI_API_KEY in the environment.
-    provider: ${AI_PROVIDER:mock}
-    # Execution mode, independent of the provider above:
-    #   SCRIPTED_DEMO (default) — deterministic Phase 1 scripts, zero LLM calls.
-    #   REAL                    — agents must reason through a real LLM; their
-    #                             validated output is authoritative. If no real
-    #                             provider is available the analysis fails
-    #                             explicitly rather than silently fabricating.
-    mode: ${AI_MODE:SCRIPTED_DEMO}
+    # Which LLMService implementation to use: "justdowork" (default), "gemini", "openai", or "mock".
+    # Never commit a real key — set GEMINI_API_KEY / JUSTDOWORK_API_KEY / OPENAI_API_KEY in the environment.
+    provider: ${AI_PROVIDER:justdowork}
+    # Execution mode: REAL (default, genuine LLM reasoning required).
+    mode: ${AI_MODE:REAL}
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-3.8-flash}
+      base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
+    justdowork:
+      api-key: ${JUSTDOWORK_API_KEY:}
+      model: ${JUSTDOWORK_MODEL:claude-opus-4-8}
+      base-url: ${JUSTDOWORK_BASE_URL:https://api.justwoker.icu/v1}
     openai:
       api-key: ${OPENAI_API_KEY:}
       model: ${OPENAI_MODEL:gpt-4o-mini}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     request-timeout-seconds: 45
+    resilience:
+      max-attempts: ${LLM_RETRY_MAX_ATTEMPTS:3}
+      initial-backoff-ms: ${LLM_RETRY_INITIAL_BACKOFF_MS:250}
+      backoff-multiplier: ${LLM_RETRY_BACKOFF_MULTIPLIER:2.0}
+      max-backoff-ms: ${LLM_RETRY_MAX_BACKOFF_MS:2000}
 
 logging:
   level:

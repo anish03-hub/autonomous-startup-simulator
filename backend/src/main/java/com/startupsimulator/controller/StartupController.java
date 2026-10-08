@@ -6,6 +6,8 @@ import com.startupsimulator.model.Startup;
 import com.startupsimulator.model.enums.AgentType;
 import com.startupsimulator.orchestrator.StartupOrchestrator;
 import com.startupsimulator.service.*;
+import com.startupsimulator.dto.response.ExecutionTraceEntryDto;
+import com.startupsimulator.trace.ExecutionTraceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -35,6 +37,7 @@ public class StartupController {
     private final BlueprintService blueprintService;
     private final StartupContextService contextService;
     private final StartupOrchestrator orchestrator;
+    private final ExecutionTraceService traceService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -151,5 +154,15 @@ public class StartupController {
                 contextService.technicalPlan(id),
                 contextService.marketingPlan(id),
                 contextService.budget(id));
+    }
+
+    /**
+     * CA3 Section A: First-class queryable execution trace endpoint.
+     * Returns chronologically and sequentially ordered trace entries representing
+     * genuine agent reasoning, messaging, tool calls, memory, decisions, replanning, and recovery.
+     */
+    @GetMapping("/{id}/trace")
+    public List<ExecutionTraceEntryDto> trace(@PathVariable Long id) {
+        return traceService.getTrace(id);
     }
 }
