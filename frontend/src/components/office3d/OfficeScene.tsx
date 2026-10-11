@@ -247,7 +247,6 @@ function OfficeSceneComponent({
       : null;
   const activeSpeaker = lastMessage ? lastMessage.agentLabel : null;
   const currentRound = lastMessage ? lastMessage.debateRound : null;
-  const speechText = lastMessage ? lastMessage.content : null;
 
   // Active department derived from agent working state / active execution task / debate
   const activeAgent = useMemo<AgentType | "BOARDROOM" | null>(() => {
@@ -772,7 +771,6 @@ function OfficeSceneComponent({
             activity={getEmployeeActivity(emp.department)}
             inBoardroom={inDebate}
             isCurrentSpeaker={isSpeaker}
-            speechText={isSpeaker ? speechText : null}
             onSelectDepartment={(d) => onSelectDepartment(d as AgentType)}
           />
         );
