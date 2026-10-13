@@ -12,23 +12,16 @@ interface Monitor3DProps {
   currentRound?: number | null;
 }
 
-type ScreenState =
-  | "IDLE"
-  | "WORKING"
-  | "COMMUNICATING"
-  | "COMPLETED"
-  | "BLOCKED"
-  | "FAILED";
+type ScreenState = "IDLE" | "WORKING" | "COMMUNICATING" | "COMPLETED" | "BLOCKED" | "FAILED";
 
 interface ScreenModel {
   status: ScreenState;
   task: string | null;
-  progress: number | null; // 0..100
+  progress: number | null;
   blocker: string | null;
   findings: { label: string; value: string }[];
 }
 
-// Per-department screen palette (header bar bg, accent text, icon, title).
 const SCREEN: Record<AgentType, { bar: string; accent: string; icon: string; title: string }> = {
   CEO: { bar: "#422006", accent: "#fbbf24", icon: "🎯", title: "CEO · STRATEGY" },
   DEVELOPMENT: { bar: "#082f3a", accent: "#38bdf8", icon: "⚡", title: "DEV · BUILD" },
@@ -65,46 +58,32 @@ interface StoreSlices {
   debates: Debate[];
 }
 
-// Derive a department's live screen model purely from genuine, persisted store
-// data (agents, execution tasks, plans, startup analysis). No fabricated or
-// random content; each department reads only its own slice, so one agent's work
-// never appears on another's monitor.
 function buildModel(type: AgentType, s: StoreSlices): ScreenModel {
   const { agents, executionState, plans, startup, debates } = s;
   const agent = agents.find((a) => a.type === type);
   const agState = agent?.state ?? "IDLE";
-
   const deptTask = executionState?.tasks?.find(
     (t) => t.department === type && (t.status === "IN_PROGRESS" || t.status === "BLOCKED")
   );
-  const deptProgress =
-    executionState?.departmentProgress?.[type] ??
-    (deptTask ? deptTask.progress : null);
-
-  // Analysis-failure flags are genuine FAILED signals.
+  const deptProgress = executionState?.departmentProgress?.[type] ?? (deptTask ? deptTask.progress : null);
   const failed =
     (type === "CEO" && !!startup?.ceoAnalysisFailed) ||
     (type === "DEVELOPMENT" && !!plans?.technical?.analysisFailed) ||
     (type === "MARKETING" && !!plans?.marketing?.analysisFailed) ||
     (type === "FINANCE" && !!plans?.budget?.analysisFailed);
-
   let status: ScreenState;
   if (failed) status = "FAILED";
   else if (deptTask?.status === "BLOCKED" || agState === "BLOCKED") status = "BLOCKED";
   else if (agState === "DISCUSSING" || agState === "MEETING") status = "COMMUNICATING";
-  else if (deptTask || agState === "WORKING" || agState === "THINKING" || agState === "DECIDING")
-    status = "WORKING";
+  else if (deptTask || agState === "WORKING" || agState === "THINKING" || agState === "DECIDING") status = "WORKING";
   else if (agState === "COMPLETED") status = "COMPLETED";
   else status = "IDLE";
-
   const task = clean(deptTask?.title) ?? clean(agent?.currentActivity);
   const progress = deptTask ? deptTask.progress : deptProgress;
-
   const findings: { label: string; value: string }[] = [];
   const push = (label: string, value: string | null) => {
     if (value) findings.push({ label, value });
   };
-
   if (type === "CEO") {
     const decision = debates[debates.length - 1]?.decision?.decision;
     push("Objective", clean(startup?.strategicObjectives?.[0]) ?? clean(startup?.mvpDirection));
@@ -125,12 +104,9 @@ function buildModel(type: AgentType, s: StoreSlices): ScreenModel {
     if (plans?.budget?.monthlyBurn) push("Burn", money(plans.budget.monthlyBurn) + "/mo");
     push("Break-even", clean(plans?.budget?.breakEvenAssumption));
   }
-
   return { status, task, progress: progress ?? null, blocker: clean(deptTask?.blockerReason), findings };
 }
 
-// Wrap `text` to `maxWidth`, returning at most `maxLines` lines (last line
-// ellipsised if it overflows). Keeps canvas text inside the monitor bezel.
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
@@ -155,115 +131,111 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
 }
 
 function drawDepartmentScreen(ctx: CanvasRenderingContext2D, type: AgentType, model: ScreenModel) {
-  const W = 512;
-  const H = 320;
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+  const S = W / 512;
   const theme = SCREEN[type];
   const st = STATUS_STYLE[model.status];
 
-  // Background
-  ctx.fillStyle = "#0a0e17";
+  ctx.fillStyle = "#0f1117";
   ctx.fillRect(0, 0, W, H);
 
-  // Header bar
   ctx.fillStyle = theme.bar;
-  ctx.fillRect(0, 0, W, 40);
+  ctx.fillRect(0, 0, W, 40 * S);
   ctx.fillStyle = theme.accent;
-  ctx.font = "bold 18px sans-serif";
+  ctx.font = `bold ${18 * S}px sans-serif`;
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(`${theme.icon} ${theme.title}`, 16, 27);
+  ctx.fillText(`${theme.icon} ${theme.title}`, 16 * S, 27 * S);
 
-  // Status badge (right-aligned)
-  ctx.font = "bold 13px monospace";
+  ctx.font = `bold ${13 * S}px monospace`;
   ctx.fillStyle = st.color;
   const badgeW = ctx.measureText(st.label).width;
-  ctx.fillText(st.label, W - badgeW - 16, 26);
+  ctx.fillText(st.label, W - badgeW - 16 * S, 26 * S);
 
-  // Current task
-  let y = 68;
-  ctx.font = "13px sans-serif";
+  let y = 68 * S;
+  ctx.font = `${13 * S}px sans-serif`;
   ctx.fillStyle = "#64748b";
-  ctx.fillText("CURRENT TASK", 16, y);
-  y += 22;
-  ctx.font = "bold 16px sans-serif";
+  ctx.fillText("CURRENT TASK", 16 * S, y);
+  y += 22 * S;
+  ctx.font = `bold ${16 * S}px sans-serif`;
   ctx.fillStyle = "#e2e8f0";
   const taskText = model.task ?? (model.status === "IDLE" ? "Standby — awaiting activity" : "—");
-  wrapLines(ctx, taskText, W - 32, 2).forEach((ln) => {
-    ctx.fillText(ln, 16, y);
-    y += 22;
+  wrapLines(ctx, taskText, W - 32 * S, 2).forEach((ln) => {
+    ctx.fillText(ln, 16 * S, y);
+    y += 22 * S;
   });
 
-  // Blocker (if any) or progress bar
   if (model.blocker) {
-    y += 2;
-    ctx.font = "13px sans-serif";
+    y += 2 * S;
+    ctx.font = `${13 * S}px sans-serif`;
     ctx.fillStyle = "#fbbf24";
-    wrapLines(ctx, "⚠ " + model.blocker, W - 32, 2).forEach((ln) => {
-      ctx.fillText(ln, 16, y);
-      y += 18;
+    wrapLines(ctx, "⚠ " + model.blocker, W - 32 * S, 2).forEach((ln) => {
+      ctx.fillText(ln, 16 * S, y);
+      y += 18 * S;
     });
   } else if (model.progress != null) {
-    y += 4;
+    y += 4 * S;
     ctx.fillStyle = "#1e293b";
-    ctx.fillRect(16, y, W - 32, 14);
+    ctx.fillRect(16 * S, y, W - 32 * S, 14 * S);
     ctx.fillStyle = theme.accent;
-    ctx.fillRect(16, y, (W - 32) * Math.max(0, Math.min(100, model.progress)) / 100, 14);
-    ctx.fillStyle = "#0a0e17";
-    ctx.font = "bold 11px monospace";
-    ctx.fillText(`${Math.round(model.progress)}%`, 22, y + 11);
-    y += 26;
+    ctx.fillRect(16 * S, y, (W - 32 * S) * Math.max(0, Math.min(100, model.progress)) / 100, 14 * S);
+    ctx.fillStyle = "#0f1117";
+    ctx.font = `bold ${11 * S}px monospace`;
+    ctx.fillText(`${Math.round(model.progress)}%`, 22 * S, y + 11 * S);
+    y += 26 * S;
   } else {
-    y += 6;
+    y += 6 * S;
   }
 
-  // Divider
   ctx.strokeStyle = "#1e293b";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1 * S;
   ctx.beginPath();
-  ctx.moveTo(16, y);
-  ctx.lineTo(W - 16, y);
+  ctx.moveTo(16 * S, y);
+  ctx.lineTo(W - 16 * S, y);
   ctx.stroke();
-  y += 22;
+  y += 22 * S;
 
-  // Findings (genuine persisted analysis / live metrics)
   if (model.findings.length === 0) {
-    ctx.font = "14px sans-serif";
+    ctx.font = `${14 * S}px sans-serif`;
     ctx.fillStyle = "#475569";
-    ctx.fillText("No results yet.", 16, y);
+    ctx.fillText("No results yet.", 16 * S, y);
   } else {
     for (const f of model.findings) {
-      if (y > H - 14) break;
-      ctx.font = "bold 12px sans-serif";
+      if (y > H - 14 * S) break;
+      ctx.font = `bold ${12 * S}px sans-serif`;
       ctx.fillStyle = theme.accent;
-      ctx.fillText(f.label.toUpperCase(), 16, y);
-      y += 18;
-      ctx.font = "14px sans-serif";
+      ctx.fillText(f.label.toUpperCase(), 16 * S, y);
+      y += 18 * S;
+      ctx.font = `${14 * S}px sans-serif`;
       ctx.fillStyle = "#cbd5e1";
-      const lines = wrapLines(ctx, f.value, W - 32, 2);
+      const lines = wrapLines(ctx, f.value, W - 32 * S, 2);
       for (const ln of lines) {
-        if (y > H - 10) break;
-        ctx.fillText(ln, 16, y);
-        y += 19;
+        if (y > H - 10 * S) break;
+        ctx.fillText(ln, 16 * S, y);
+        y += 19 * S;
       }
-      y += 6;
+      y += 6 * S;
     }
   }
 }
 
 function drawBoardroomScreen(ctx: CanvasRenderingContext2D, speaker: string | null, round: number | null) {
-  const W = 512;
-  ctx.fillStyle = "#0a0e17";
-  ctx.fillRect(0, 0, W, 320);
-  ctx.fillStyle = "#3b0764";
-  ctx.fillRect(0, 0, W, 44);
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+  const S = W / 512;
+  ctx.fillStyle = "#0f1117";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#2a1848";
+  ctx.fillRect(0, 0, W, 44 * S);
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 18px sans-serif";
-  ctx.fillText("⚖️ BOARDROOM DEBATE", 16, 30);
+  ctx.font = `bold ${18 * S}px sans-serif`;
+  ctx.fillText("⚖️ BOARDROOM DEBATE", 16 * S, 30 * S);
   ctx.fillStyle = "#a78bfa";
-  ctx.font = "bold 16px sans-serif";
-  ctx.fillText(`STATUS: ${round ? `ROUND ${round}` : "STRATEGIC DEBATE"}`, 20, 92);
+  ctx.font = `bold ${16 * S}px sans-serif`;
+  ctx.fillText(`STATUS: ${round ? `ROUND ${round}` : "STRATEGIC DEBATE"}`, 20 * S, 92 * S);
   ctx.fillStyle = "#f3e8ff";
-  ctx.font = "15px sans-serif";
-  ctx.fillText(`SPEAKER: ${speaker || "—"}`, 20, 134);
+  ctx.font = `${15 * S}px sans-serif`;
+  ctx.fillText(`SPEAKER: ${speaker || "—"}`, 20 * S, 134 * S);
 }
 
 function Monitor3DComponent({
@@ -284,8 +256,8 @@ function Monitor3DComponent({
 
   const canvas = useMemo(() => {
     const c = document.createElement("canvas");
-    c.width = 512;
-    c.height = 320;
+    c.width = 1024;
+    c.height = 640;
     return c;
   }, []);
 
@@ -293,17 +265,23 @@ function Monitor3DComponent({
     const tex = new THREE.CanvasTexture(canvas);
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
     textureRef.current = tex;
     return tex;
   }, [canvas]);
+
+  useEffect(() => {
+    return () => {
+      textureRef.current?.dispose();
+    };
+  }, []);
 
   const model = useMemo<ScreenModel | null>(() => {
     if (type === "BOARDROOM") return null;
     return buildModel(type, { agents, executionState, plans, startup, debates });
   }, [type, agents, executionState, plans, startup, debates]);
 
-  // Redraw the screen texture only when the underlying data changes — no
-  // per-frame animation, so the monitor never flickers or churns the GPU.
   useEffect(() => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -316,15 +294,18 @@ function Monitor3DComponent({
   }, [canvas, type, model, activeSpeaker, currentRound]);
 
   const glow =
-    type === "DEVELOPMENT" ? "#06b6d4"
-    : type === "MARKETING" ? "#ec4899"
-    : type === "FINANCE" ? "#10b981"
-    : type === "BOARDROOM" ? "#a78bfa"
-    : "#f59e0b";
+    type === "DEVELOPMENT"
+      ? "#06b6d4"
+      : type === "MARKETING"
+        ? "#ec4899"
+        : type === "FINANCE"
+          ? "#10b981"
+          : type === "BOARDROOM"
+            ? "#a78bfa"
+            : "#f59e0b";
 
   return (
     <group position={position} rotation={rotation} scale={scale}>
-      {/* Sleek Metallic Monitor Stand */}
       <mesh position={[0, -0.22, 0]} castShadow>
         <boxGeometry args={[0.26, 0.02, 0.2]} />
         <meshStandardMaterial color="#1e293b" roughness={0.2} metalness={0.8} />
@@ -333,21 +314,15 @@ function Monitor3DComponent({
         <boxGeometry args={[0.045, 0.26, 0.045]} />
         <meshStandardMaterial color="#475569" roughness={0.2} metalness={0.9} />
       </mesh>
-
-      {/* Thin Bezel Display Casing */}
       <mesh position={[0, 0.14, 0]} castShadow>
         <boxGeometry args={[0.76, 0.46, 0.035]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.2} metalness={0.8} />
+        <meshStandardMaterial color="#0f172a" roughness={0.2} metalness={0.85} />
       </mesh>
-
-      {/* Emissive Display Screen Mesh */}
       <mesh position={[0, 0.14, 0.02]}>
-        <planeGeometry args={[0.72, 0.42]} />
+        <planeGeometry args={[0.72, 0.45]} />
         <meshBasicMaterial map={texture} toneMapped={false} />
       </mesh>
-
-      {/* Soft Emissive Screen Light Glow */}
-      <pointLight position={[0, 0.14, 0.25]} intensity={0.8} distance={1.8} color={glow} />
+      <pointLight position={[0, 0.14, 0.25]} intensity={0.55} distance={1.6} color={glow} />
     </group>
   );
 }
