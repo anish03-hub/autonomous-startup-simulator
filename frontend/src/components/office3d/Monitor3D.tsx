@@ -1,7 +1,7 @@
-import { useRef, useMemo, memo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useRef, useMemo, useEffect, memo } from "react";
 import * as THREE from "three";
-import type { AgentType } from "../../types";
+import { useSim } from "../../store/simulationStore";
+import type { AgentType, Plans, Startup, Agent, ExecutionState, Debate } from "../../types";
 
 interface Monitor3DProps {
   type: AgentType | "BOARDROOM";
@@ -12,13 +12,259 @@ interface Monitor3DProps {
   currentRound?: number | null;
 }
 
-const TYPE_FRAME_OFFSETS: Record<string, number> = {
-  DEVELOPMENT: 0,
-  MARKETING: 2,
-  FINANCE: 4,
-  CEO: 1,
-  BOARDROOM: 3,
+type ScreenState =
+  | "IDLE"
+  | "WORKING"
+  | "COMMUNICATING"
+  | "COMPLETED"
+  | "BLOCKED"
+  | "FAILED";
+
+interface ScreenModel {
+  status: ScreenState;
+  task: string | null;
+  progress: number | null; // 0..100
+  blocker: string | null;
+  findings: { label: string; value: string }[];
+}
+
+// Per-department screen palette (header bar bg, accent text, icon, title).
+const SCREEN: Record<AgentType, { bar: string; accent: string; icon: string; title: string }> = {
+  CEO: { bar: "#422006", accent: "#fbbf24", icon: "🎯", title: "CEO · STRATEGY" },
+  DEVELOPMENT: { bar: "#082f3a", accent: "#38bdf8", icon: "⚡", title: "DEV · BUILD" },
+  MARKETING: { bar: "#3b0a2e", accent: "#f472b6", icon: "📈", title: "MKT · GROWTH" },
+  FINANCE: { bar: "#052e24", accent: "#34d399", icon: "💵", title: "FIN · RUNWAY" },
 };
+
+const STATUS_STYLE: Record<ScreenState, { label: string; color: string }> = {
+  IDLE: { label: "IDLE", color: "#64748b" },
+  WORKING: { label: "● WORKING", color: "#38bdf8" },
+  COMMUNICATING: { label: "● COMMUNICATING", color: "#a78bfa" },
+  COMPLETED: { label: "✔ COMPLETED", color: "#34d399" },
+  BLOCKED: { label: "⚠ BLOCKED", color: "#f59e0b" },
+  FAILED: { label: "✕ FAILED", color: "#f87171" },
+};
+
+function clean(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const t = s.trim();
+  return t.length ? t : null;
+}
+
+function money(n: number | null | undefined): string {
+  if (n == null || !isFinite(n)) return "—";
+  if (Math.abs(n) >= 1000) return "$" + Math.round(n / 1000) + "k";
+  return "$" + Math.round(n);
+}
+
+interface StoreSlices {
+  agents: Agent[];
+  executionState: ExecutionState | null;
+  plans: Plans | null;
+  startup: Startup | null;
+  debates: Debate[];
+}
+
+// Derive a department's live screen model purely from genuine, persisted store
+// data (agents, execution tasks, plans, startup analysis). No fabricated or
+// random content; each department reads only its own slice, so one agent's work
+// never appears on another's monitor.
+function buildModel(type: AgentType, s: StoreSlices): ScreenModel {
+  const { agents, executionState, plans, startup, debates } = s;
+  const agent = agents.find((a) => a.type === type);
+  const agState = agent?.state ?? "IDLE";
+
+  const deptTask = executionState?.tasks?.find(
+    (t) => t.department === type && (t.status === "IN_PROGRESS" || t.status === "BLOCKED")
+  );
+  const deptProgress =
+    executionState?.departmentProgress?.[type] ??
+    (deptTask ? deptTask.progress : null);
+
+  // Analysis-failure flags are genuine FAILED signals.
+  const failed =
+    (type === "CEO" && !!startup?.ceoAnalysisFailed) ||
+    (type === "DEVELOPMENT" && !!plans?.technical?.analysisFailed) ||
+    (type === "MARKETING" && !!plans?.marketing?.analysisFailed) ||
+    (type === "FINANCE" && !!plans?.budget?.analysisFailed);
+
+  let status: ScreenState;
+  if (failed) status = "FAILED";
+  else if (deptTask?.status === "BLOCKED" || agState === "BLOCKED") status = "BLOCKED";
+  else if (agState === "DISCUSSING" || agState === "MEETING") status = "COMMUNICATING";
+  else if (deptTask || agState === "WORKING" || agState === "THINKING" || agState === "DECIDING")
+    status = "WORKING";
+  else if (agState === "COMPLETED") status = "COMPLETED";
+  else status = "IDLE";
+
+  const task = clean(deptTask?.title) ?? clean(agent?.currentActivity);
+  const progress = deptTask ? deptTask.progress : deptProgress;
+
+  const findings: { label: string; value: string }[] = [];
+  const push = (label: string, value: string | null) => {
+    if (value) findings.push({ label, value });
+  };
+
+  if (type === "CEO") {
+    const decision = debates[debates.length - 1]?.decision?.decision;
+    push("Objective", clean(startup?.strategicObjectives?.[0]) ?? clean(startup?.mvpDirection));
+    push("Decision", clean(decision));
+    push("Summary", clean(startup?.executiveSummary));
+  } else if (type === "DEVELOPMENT") {
+    push("Stack", clean(plans?.technical?.techStack));
+    push("Architecture", clean(plans?.technical?.architecture));
+    push("Timeline", clean(plans?.technical?.timeline));
+  } else if (type === "MARKETING") {
+    push("Positioning", clean(plans?.marketing?.positioning));
+    push("Channels", clean(plans?.marketing?.channels));
+    push("Insight", clean(plans?.marketing?.competitorAnalysis));
+  } else if (type === "FINANCE") {
+    const runway = executionState?.runwayMonths ?? plans?.budget?.runwayMonths;
+    if (runway != null && isFinite(runway)) push("Runway", runway.toFixed(1) + " mo");
+    if (executionState?.budgetRemaining != null) push("Budget", money(executionState.budgetRemaining) + " left");
+    if (plans?.budget?.monthlyBurn) push("Burn", money(plans.budget.monthlyBurn) + "/mo");
+    push("Break-even", clean(plans?.budget?.breakEvenAssumption));
+  }
+
+  return { status, task, progress: progress ?? null, blocker: clean(deptTask?.blockerReason), findings };
+}
+
+// Wrap `text` to `maxWidth`, returning at most `maxLines` lines (last line
+// ellipsised if it overflows). Keeps canvas text inside the monitor bezel.
+function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const trial = line ? line + " " + w : w;
+    if (ctx.measureText(trial).width > maxWidth && line) {
+      lines.push(line);
+      line = w;
+      if (lines.length === maxLines) break;
+    } else {
+      line = trial;
+    }
+  }
+  if (lines.length < maxLines && line) lines.push(line);
+  if (lines.length === maxLines) {
+    let last = lines[maxLines - 1];
+    while (last.length > 1 && ctx.measureText(last + "…").width > maxWidth) last = last.slice(0, -1);
+    lines[maxLines - 1] = last + "…";
+  }
+  return lines;
+}
+
+function drawDepartmentScreen(ctx: CanvasRenderingContext2D, type: AgentType, model: ScreenModel) {
+  const W = 512;
+  const H = 320;
+  const theme = SCREEN[type];
+  const st = STATUS_STYLE[model.status];
+
+  // Background
+  ctx.fillStyle = "#0a0e17";
+  ctx.fillRect(0, 0, W, H);
+
+  // Header bar
+  ctx.fillStyle = theme.bar;
+  ctx.fillRect(0, 0, W, 40);
+  ctx.fillStyle = theme.accent;
+  ctx.font = "bold 18px sans-serif";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(`${theme.icon} ${theme.title}`, 16, 27);
+
+  // Status badge (right-aligned)
+  ctx.font = "bold 13px monospace";
+  ctx.fillStyle = st.color;
+  const badgeW = ctx.measureText(st.label).width;
+  ctx.fillText(st.label, W - badgeW - 16, 26);
+
+  // Current task
+  let y = 68;
+  ctx.font = "13px sans-serif";
+  ctx.fillStyle = "#64748b";
+  ctx.fillText("CURRENT TASK", 16, y);
+  y += 22;
+  ctx.font = "bold 16px sans-serif";
+  ctx.fillStyle = "#e2e8f0";
+  const taskText = model.task ?? (model.status === "IDLE" ? "Standby — awaiting activity" : "—");
+  wrapLines(ctx, taskText, W - 32, 2).forEach((ln) => {
+    ctx.fillText(ln, 16, y);
+    y += 22;
+  });
+
+  // Blocker (if any) or progress bar
+  if (model.blocker) {
+    y += 2;
+    ctx.font = "13px sans-serif";
+    ctx.fillStyle = "#fbbf24";
+    wrapLines(ctx, "⚠ " + model.blocker, W - 32, 2).forEach((ln) => {
+      ctx.fillText(ln, 16, y);
+      y += 18;
+    });
+  } else if (model.progress != null) {
+    y += 4;
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(16, y, W - 32, 14);
+    ctx.fillStyle = theme.accent;
+    ctx.fillRect(16, y, (W - 32) * Math.max(0, Math.min(100, model.progress)) / 100, 14);
+    ctx.fillStyle = "#0a0e17";
+    ctx.font = "bold 11px monospace";
+    ctx.fillText(`${Math.round(model.progress)}%`, 22, y + 11);
+    y += 26;
+  } else {
+    y += 6;
+  }
+
+  // Divider
+  ctx.strokeStyle = "#1e293b";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(16, y);
+  ctx.lineTo(W - 16, y);
+  ctx.stroke();
+  y += 22;
+
+  // Findings (genuine persisted analysis / live metrics)
+  if (model.findings.length === 0) {
+    ctx.font = "14px sans-serif";
+    ctx.fillStyle = "#475569";
+    ctx.fillText("No results yet.", 16, y);
+  } else {
+    for (const f of model.findings) {
+      if (y > H - 14) break;
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillStyle = theme.accent;
+      ctx.fillText(f.label.toUpperCase(), 16, y);
+      y += 18;
+      ctx.font = "14px sans-serif";
+      ctx.fillStyle = "#cbd5e1";
+      const lines = wrapLines(ctx, f.value, W - 32, 2);
+      for (const ln of lines) {
+        if (y > H - 10) break;
+        ctx.fillText(ln, 16, y);
+        y += 19;
+      }
+      y += 6;
+    }
+  }
+}
+
+function drawBoardroomScreen(ctx: CanvasRenderingContext2D, speaker: string | null, round: number | null) {
+  const W = 512;
+  ctx.fillStyle = "#0a0e17";
+  ctx.fillRect(0, 0, W, 320);
+  ctx.fillStyle = "#3b0764";
+  ctx.fillRect(0, 0, W, 44);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 18px sans-serif";
+  ctx.fillText("⚖️ BOARDROOM DEBATE", 16, 30);
+  ctx.fillStyle = "#a78bfa";
+  ctx.font = "bold 16px sans-serif";
+  ctx.fillText(`STATUS: ${round ? `ROUND ${round}` : "STRATEGIC DEBATE"}`, 20, 92);
+  ctx.fillStyle = "#f3e8ff";
+  ctx.font = "15px sans-serif";
+  ctx.fillText(`SPEAKER: ${speaker || "—"}`, 20, 134);
+}
 
 function Monitor3DComponent({
   type,
@@ -29,9 +275,13 @@ function Monitor3DComponent({
   currentRound,
 }: Monitor3DProps) {
   const textureRef = useRef<THREE.CanvasTexture | null>(null);
-  const frameCount = useRef(TYPE_FRAME_OFFSETS[type] || 0);
 
-  // Dynamic canvas texture for monitor display (512x320)
+  const agents = useSim((s) => s.agents);
+  const executionState = useSim((s) => s.executionState);
+  const plans = useSim((s) => s.plans);
+  const startup = useSim((s) => s.startup);
+  const debates = useSim((s) => s.debates);
+
   const canvas = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = 512;
@@ -47,177 +297,30 @@ function Monitor3DComponent({
     return tex;
   }, [canvas]);
 
-  // Throttled monitor screen update loop (~10 FPS instead of 60 FPS per monitor)
-  useFrame(({ clock }) => {
-    frameCount.current += 1;
-    if (frameCount.current % 6 !== 0) return;
+  const model = useMemo<ScreenModel | null>(() => {
+    if (type === "BOARDROOM") return null;
+    return buildModel(type, { agents, executionState, plans, startup, debates });
+  }, [type, agents, executionState, plans, startup, debates]);
 
+  // Redraw the screen texture only when the underlying data changes — no
+  // per-frame animation, so the monitor never flickers or churns the GPU.
+  useEffect(() => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const time = clock.getElapsedTime();
-
-    // Dark IDE / Dashboard background
-    ctx.fillStyle = "#090d16";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    if (type === "DEVELOPMENT") {
-      // IDE Header Bar
-      ctx.fillStyle = "#0f172a";
-      ctx.fillRect(0, 0, canvas.width, 36);
-      ctx.fillStyle = "#38bdf8";
-      ctx.font = "bold 15px monospace";
-      ctx.fillText("⚡ VS_CODE // main.ts", 18, 24);
-
-      // Line Numbers & Real Code Editor Output
-      ctx.font = "14px monospace";
-
-      const lines = [
-        "1  function analyzeStartup() {",
-        "2    const mvp = evaluateScope();",
-        "3    const architecture = buildStack();",
-        "4    const cluster = deployNodes();",
-        "5    return buildPlan(mvp);",
-        "6  }",
-        "7  ",
-        "8  // API Gateway connected [200 OK]",
-        "9  // DB Latency: 1.4ms (Healthy)",
-        "10 export default analyzeStartup();",
-      ];
-
-      const scrollY = (time * 18) % 120;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, 36, canvas.width, canvas.height - 36);
-      ctx.clip();
-
-      lines.forEach((line, idx) => {
-        const y = 62 + idx * 24 - (scrollY % 120);
-        const finalY = y < 36 ? y + 120 : y;
-
-        if (line.includes("function") || line.includes("return") || line.includes("export")) {
-          ctx.fillStyle = "#38bdf8";
-        } else if (line.includes("const")) {
-          ctx.fillStyle = "#f472b6";
-        } else if (line.includes("//")) {
-          ctx.fillStyle = "#10b981";
-        } else {
-          ctx.fillStyle = "#cbd5e1";
-        }
-        ctx.fillText(line, 18, finalY);
-      });
-      ctx.restore();
-
-      // Blinking IDE Cursor
-      if (Math.sin(time * 8) > 0) {
-        ctx.fillStyle = "#38bdf8";
-        ctx.fillRect(270, 158, 8, 16);
-      }
-    } else if (type === "MARKETING") {
-      // Campaign Analytics Screen
-      ctx.fillStyle = "#1e102a";
-      ctx.fillRect(0, 0, canvas.width, 36);
-      ctx.fillStyle = "#f472b6";
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText("📈 CAMPAIGN ANALYTICS", 18, 24);
-
-      // Metrics Cards
-      ctx.fillStyle = "#33153b";
-      ctx.fillRect(20, 50, 140, 60);
-      ctx.fillRect(180, 50, 140, 60);
-      ctx.fillRect(340, 50, 140, 60);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "12px sans-serif";
-      ctx.fillText("Conversion", 30, 68);
-      ctx.fillText("CTR", 190, 68);
-      ctx.fillText("Growth", 350, 68);
-
-      ctx.font = "bold 18px sans-serif";
-      ctx.fillStyle = "#ec4899";
-      ctx.fillText("68%", 30, 95);
-      ctx.fillStyle = "#38bdf8";
-      ctx.fillText("4.7%", 190, 95);
-      ctx.fillStyle = "#10b981";
-      ctx.fillText("+18%", 350, 95);
-
-      // Animated Line Chart
-      ctx.strokeStyle = "#ec4899";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      for (let x = 20; x < canvas.width - 20; x += 10) {
-        const y = 240 - Math.sin((x / 25) + time * 3) * 35 - (x / canvas.width) * 40;
-        if (x === 20) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    } else if (type === "FINANCE") {
-      // Financial Control Ledger
-      ctx.fillStyle = "#062e24";
-      ctx.fillRect(0, 0, canvas.width, 36);
-      ctx.fillStyle = "#34d399";
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText("💵 FINANCIAL RUNWAY & BUDGET", 18, 24);
-
-      ctx.font = "15px monospace";
-      const rows = [
-        ["REVENUE", "$45,200 / mo"],
-        ["BURN RATE", "$28,500 / mo"],
-        ["RUNWAY", "18.4 Months"],
-        ["BUDGET", "$500,000 Total"],
-        ["NET MARGIN", "+24.2% Growth"],
-      ];
-
-      rows.forEach(([label, val], idx) => {
-        ctx.fillStyle = "#a7f3d0";
-        ctx.fillText(label, 24, 75 + idx * 42);
-        ctx.fillStyle = label === "REVENUE" || label === "NET MARGIN" ? "#34d399" : "#fbbf24";
-        ctx.fillText(val, 280, 75 + idx * 42);
-      });
-    } else if (type === "CEO") {
-      // Executive Strategic Dashboard
-      ctx.fillStyle = "#451a03";
-      ctx.fillRect(0, 0, canvas.width, 36);
-      ctx.fillStyle = "#fbbf24";
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText("🎯 STRATEGY & OBJECTIVES", 18, 24);
-
-      ctx.font = "bold 15px sans-serif";
-      ctx.fillStyle = "#fef3c7";
-      ctx.fillText("STRATEGY: Product-Market Fit", 24, 75);
-      ctx.fillText("MVP: Autonomous AI Suite", 24, 115);
-      ctx.fillText("MARKET: B2B Enterprise SaaS", 24, 155);
-      ctx.fillText("OBJECTIVES: 100 Early Adopters", 24, 195);
-
-      // Strategic Readiness Bar
-      ctx.fillStyle = "#292524";
-      ctx.fillRect(24, 235, 460, 24);
-      const w = 460 * (0.72 + Math.sin(time * 0.5) * 0.03);
-      ctx.fillStyle = "#f59e0b";
-      ctx.fillRect(24, 235, w, 24);
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 12px sans-serif";
-      ctx.fillText("GO-TO-MARKET READINESS: 72%", 170, 252);
-    } else if (type === "BOARDROOM") {
-      // Big Wall Display
-      ctx.fillStyle = "#3b0764";
-      ctx.fillRect(0, 0, canvas.width, 44);
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 18px sans-serif";
-      ctx.fillText("AUTONOMOUS BOARDROOM DEBATE", 18, 30);
-
-      ctx.fillStyle = "#a78bfa";
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText(`STATUS: ${currentRound ? `ROUND ${currentRound}` : "STRATEGIC DEBATE"}`, 24, 95);
-
-      ctx.fillStyle = "#f3e8ff";
-      ctx.font = "15px sans-serif";
-      ctx.fillText(`SPEAKER: ${activeSpeaker || "CEO Alex Vance"}`, 24, 140);
+    if (type === "BOARDROOM") {
+      drawBoardroomScreen(ctx, activeSpeaker ?? null, currentRound ?? null);
+    } else if (model) {
+      drawDepartmentScreen(ctx, type, model);
     }
+    if (textureRef.current) textureRef.current.needsUpdate = true;
+  }, [canvas, type, model, activeSpeaker, currentRound]);
 
-    if (textureRef.current) {
-      textureRef.current.needsUpdate = true;
-    }
-  });
+  const glow =
+    type === "DEVELOPMENT" ? "#06b6d4"
+    : type === "MARKETING" ? "#ec4899"
+    : type === "FINANCE" ? "#10b981"
+    : type === "BOARDROOM" ? "#a78bfa"
+    : "#f59e0b";
 
   return (
     <group position={position} rotation={rotation} scale={scale}>
@@ -240,36 +343,11 @@ function Monitor3DComponent({
       {/* Emissive Display Screen Mesh */}
       <mesh position={[0, 0.14, 0.02]}>
         <planeGeometry args={[0.72, 0.42]} />
-        <meshBasicMaterial map={texture} />
+        <meshBasicMaterial map={texture} toneMapped={false} />
       </mesh>
 
-      {/* Soft Emissive Screen Light Glow (No shadow overhead) */}
-      <pointLight
-        position={[0, 0.14, 0.25]}
-        intensity={
-          type === "DEVELOPMENT"
-            ? 0.9
-            : type === "MARKETING"
-            ? 0.8
-            : type === "FINANCE"
-            ? 0.7
-            : type === "BOARDROOM"
-            ? 1.2
-            : 0.85
-        }
-        distance={1.8}
-        color={
-          type === "DEVELOPMENT"
-            ? "#06b6d4"
-            : type === "MARKETING"
-            ? "#ec4899"
-            : type === "FINANCE"
-            ? "#10b981"
-            : type === "BOARDROOM"
-            ? "#a78bfa"
-            : "#f59e0b"
-        }
-      />
+      {/* Soft Emissive Screen Light Glow */}
+      <pointLight position={[0, 0.14, 0.25]} intensity={0.8} distance={1.8} color={glow} />
     </group>
   );
 }
