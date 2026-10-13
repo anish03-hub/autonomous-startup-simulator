@@ -136,106 +136,142 @@ function drawDepartmentScreen(ctx: CanvasRenderingContext2D, type: AgentType, mo
   const S = W / 512;
   const theme = SCREEN[type];
   const st = STATUS_STYLE[model.status];
+  const pad = 22 * S;
+  const innerW = W - pad * 2;
 
   ctx.fillStyle = "#0f1117";
   ctx.fillRect(0, 0, W, H);
 
+  // Header — charcoal/navy with department accent
   ctx.fillStyle = theme.bar;
-  ctx.fillRect(0, 0, W, 40 * S);
+  ctx.fillRect(0, 0, W, 46 * S);
   ctx.fillStyle = theme.accent;
-  ctx.font = `bold ${18 * S}px sans-serif`;
+  ctx.font = `bold ${19 * S}px sans-serif`;
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(`${theme.icon} ${theme.title}`, 16 * S, 27 * S);
+  ctx.fillText(`${theme.icon}  ${theme.title}`, pad, 30 * S);
 
-  ctx.font = `bold ${13 * S}px monospace`;
+  // Prominent status badge — right-aligned, larger
+  ctx.font = `bold ${14 * S}px monospace`;
   ctx.fillStyle = st.color;
   const badgeW = ctx.measureText(st.label).width;
-  ctx.fillText(st.label, W - badgeW - 16 * S, 26 * S);
+  ctx.fillText(st.label, W - badgeW - pad, 30 * S);
 
-  let y = 68 * S;
-  ctx.font = `${13 * S}px sans-serif`;
+  // Clip body to prevent spill outside bezel
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(pad, 46 * S, innerW, H - 46 * S - pad);
+  ctx.clip();
+
+  let y = 74 * S;
+
+  // Section label
+  ctx.font = `${11 * S}px sans-serif`;
   ctx.fillStyle = "#64748b";
-  ctx.fillText("CURRENT TASK", 16 * S, y);
+  ctx.fillText("CURRENT TASK", pad, y);
   y += 22 * S;
-  ctx.font = `bold ${16 * S}px sans-serif`;
-  ctx.fillStyle = "#e2e8f0";
-  const taskText = model.task ?? (model.status === "IDLE" ? "Standby — awaiting activity" : "—");
-  wrapLines(ctx, taskText, W - 32 * S, 2).forEach((ln) => {
-    ctx.fillText(ln, 16 * S, y);
-    y += 22 * S;
-  });
 
-  if (model.blocker) {
-    y += 2 * S;
-    ctx.font = `${13 * S}px sans-serif`;
-    ctx.fillStyle = "#fbbf24";
-    wrapLines(ctx, "⚠ " + model.blocker, W - 32 * S, 2).forEach((ln) => {
-      ctx.fillText(ln, 16 * S, y);
-      y += 18 * S;
-    });
-  } else if (model.progress != null) {
-    y += 4 * S;
-    ctx.fillStyle = "#1e293b";
-    ctx.fillRect(16 * S, y, W - 32 * S, 14 * S);
-    ctx.fillStyle = theme.accent;
-    ctx.fillRect(16 * S, y, (W - 32 * S) * Math.max(0, Math.min(100, model.progress)) / 100, 14 * S);
-    ctx.fillStyle = "#0f1117";
-    ctx.font = `bold ${11 * S}px monospace`;
-    ctx.fillText(`${Math.round(model.progress)}%`, 22 * S, y + 11 * S);
-    y += 26 * S;
-  } else {
-    y += 6 * S;
+  // Task — large, high-contrast, primary hierarchy
+  ctx.font = `bold ${20 * S}px sans-serif`;
+  ctx.fillStyle = "#f1f5f9";
+  const taskText = model.task ?? (model.status === "IDLE" ? "Standby — awaiting activity" : "—");
+  const taskLines = wrapLines(ctx, taskText, innerW, 3);
+  for (const ln of taskLines) {
+    if (y > H - 24 * S) break;
+    ctx.fillText(ln, pad, y);
+    y += 24 * S;
   }
 
+  // Progress or blocker — only when data exists
+  if (model.blocker) {
+    y += 6 * S;
+    ctx.font = `${13 * S}px sans-serif`;
+    ctx.fillStyle = "#fbbf24";
+    const bLines = wrapLines(ctx, "⚠ " + model.blocker, innerW, 2);
+    for (const ln of bLines) {
+      if (y > H - 18 * S) break;
+      ctx.fillText(ln, pad, y);
+      y += 18 * S;
+    }
+  } else if (model.progress != null) {
+    y += 8 * S;
+    const barH = 14 * S;
+    const barY = y;
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(pad, barY, innerW, barH);
+    ctx.fillStyle = theme.accent;
+    ctx.fillRect(pad, barY, innerW * Math.max(0, Math.min(100, model.progress)) / 100, barH);
+    // Centered percent label inside bar for readability
+    ctx.fillStyle = model.progress > 50 ? "#0f1117" : "#e2e8f0";
+    ctx.font = `bold ${11 * S}px monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText(`${Math.round(model.progress)}%`, W / 2, barY + 10.5 * S);
+    ctx.textAlign = "left";
+    y = barY + barH + 14 * S;
+  } else {
+    y += 8 * S;
+  }
+
+  // Divider
   ctx.strokeStyle = "#1e293b";
   ctx.lineWidth = 1 * S;
   ctx.beginPath();
-  ctx.moveTo(16 * S, y);
-  ctx.lineTo(W - 16 * S, y);
+  ctx.moveTo(pad, y);
+  ctx.lineTo(W - pad, y);
   ctx.stroke();
-  y += 22 * S;
+  y += 20 * S;
 
-  if (model.findings.length === 0) {
-    ctx.font = `${14 * S}px sans-serif`;
+  // Findings — at most 2 concise entries, clipped
+  const findings = model.findings.slice(0, 2);
+  if (findings.length === 0) {
+    ctx.font = `${13 * S}px sans-serif`;
     ctx.fillStyle = "#475569";
-    ctx.fillText("No results yet.", 16 * S, y);
+    ctx.fillText("No results yet.", pad, y);
   } else {
-    for (const f of model.findings) {
-      if (y > H - 14 * S) break;
-      ctx.font = `bold ${12 * S}px sans-serif`;
+    for (const f of findings) {
+      if (y > H - 16 * S) break;
+      ctx.font = `bold ${11 * S}px sans-serif`;
       ctx.fillStyle = theme.accent;
-      ctx.fillText(f.label.toUpperCase(), 16 * S, y);
-      y += 18 * S;
-      ctx.font = `${14 * S}px sans-serif`;
+      ctx.fillText(f.label.toUpperCase(), pad, y);
+      y += 17 * S;
+      ctx.font = `${13 * S}px sans-serif`;
       ctx.fillStyle = "#cbd5e1";
-      const lines = wrapLines(ctx, f.value, W - 32 * S, 2);
-      for (const ln of lines) {
-        if (y > H - 10 * S) break;
-        ctx.fillText(ln, 16 * S, y);
-        y += 19 * S;
+      const vLines = wrapLines(ctx, f.value, innerW, 2);
+      for (const ln of vLines) {
+        if (y > H - 12 * S) break;
+        ctx.fillText(ln, pad, y);
+        y += 17 * S;
       }
-      y += 6 * S;
+      y += 8 * S;
     }
   }
+
+  ctx.restore();
 }
 
 function drawBoardroomScreen(ctx: CanvasRenderingContext2D, speaker: string | null, round: number | null) {
   const W = ctx.canvas.width;
   const H = ctx.canvas.height;
   const S = W / 512;
+  const pad = 22 * S;
   ctx.fillStyle = "#0f1117";
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "#2a1848";
-  ctx.fillRect(0, 0, W, 44 * S);
+  ctx.fillRect(0, 0, W, 48 * S);
   ctx.fillStyle = "#ffffff";
-  ctx.font = `bold ${18 * S}px sans-serif`;
-  ctx.fillText("⚖️ BOARDROOM DEBATE", 16 * S, 30 * S);
+  ctx.font = `bold ${19 * S}px sans-serif`;
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("⚖️  BOARDROOM DEBATE", pad, 31 * S);
   ctx.fillStyle = "#a78bfa";
-  ctx.font = `bold ${16 * S}px sans-serif`;
-  ctx.fillText(`STATUS: ${round ? `ROUND ${round}` : "STRATEGIC DEBATE"}`, 20 * S, 92 * S);
-  ctx.fillStyle = "#f3e8ff";
-  ctx.font = `${15 * S}px sans-serif`;
-  ctx.fillText(`SPEAKER: ${speaker || "—"}`, 20 * S, 134 * S);
+  ctx.font = `bold ${15 * S}px sans-serif`;
+  ctx.fillText(`STATUS: ${round ? `ROUND ${round}` : "STRATEGIC DEBATE"}`, pad, 84 * S);
+  ctx.fillStyle = "#c4b5fd";
+  ctx.font = `${14 * S}px sans-serif`;
+  const speakerLines = wrapLines(ctx, `SPEAKER: ${speaker || "—"}`, W - pad * 2, 2);
+  let sy = 112 * S;
+  for (const ln of speakerLines) {
+    ctx.fillText(ln, pad, sy);
+    sy += 18 * S;
+  }
 }
 
 function Monitor3DComponent({
