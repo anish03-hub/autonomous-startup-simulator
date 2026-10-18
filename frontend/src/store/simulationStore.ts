@@ -70,7 +70,7 @@ export const useSim = create<SimState>((set, get) => ({
   },
 
   async load(id) {
-    const [startup, agents, tasks, messages, debates, events, plans] = await Promise.all([
+    const [startup, agents, tasks, messages, debates, events, plans, executionState] = await Promise.all([
       api.getStartup(id),
       api.agents(id),
       api.tasks(id),
@@ -78,9 +78,9 @@ export const useSim = create<SimState>((set, get) => ({
       api.debates(id),
       api.events(id),
       api.plans(id),
+      api.getExecutionState(id).catch(() => null),
     ]);
-    set({ startup, agents, tasks, messages, debates, events, plans });
-    await get().loadExecutionState();
+    set({ startup, agents, tasks, messages, debates, events, plans, executionState });
   },
 
   async startSimulation(speed = 1.0) {
@@ -115,16 +115,16 @@ export const useSim = create<SimState>((set, get) => ({
   async refresh() {
     const s = get().startup;
     if (!s) return;
-    const [startup, agents, tasks, messages, debates, plans] = await Promise.all([
+    const [startup, agents, tasks, messages, debates, plans, executionState] = await Promise.all([
       api.getStartup(s.id),
       api.agents(s.id),
       api.tasks(s.id),
       api.messages(s.id),
       api.debates(s.id),
       api.plans(s.id),
+      api.getExecutionState(s.id).catch(() => get().executionState),
     ]);
-    set({ startup, agents, tasks, messages, debates, plans });
-    void get().loadExecutionState();
+    set({ startup, agents, tasks, messages, debates, plans, executionState });
   },
 
   async loadBlueprint() {
