@@ -33,7 +33,7 @@ public class AgentRecoveryEngine {
     private final ExecutionTraceService traceService;
 
     // Track active recovery attempts per (startupId, taskOrAction) to enforce maxAttempts = 1 (no recursion / infinite loops)
-    private final Set<String> activeRecoveries = ConcurrentHashMap.newKeySet();
+    private Set<String> activeRecoveries = ConcurrentHashMap.newKeySet();
 
     public AgentRecoveryOutcome attemptRecovery(AgentRecoveryRequest request) {
         if (request == null || request.startupId() == null || request.failedAgent() == null) {

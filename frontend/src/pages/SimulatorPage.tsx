@@ -11,8 +11,15 @@ import BoardroomView from "../components/debate/BoardroomView";
 import BlueprintView from "../components/blueprint/BlueprintView";
 import ExecutionDashboard from "../components/execution/ExecutionDashboard";
 
-export default function SimulatorPage({ sseConnected }: { sseConnected: boolean }) {
+export default function SimulatorPage({
+  sseConnected,
+  startupId,
+}: {
+  sseConnected: boolean;
+  startupId?: number | null;
+}) {
   const startup = useSim((s) => s.startup);
+  const load = useSim((s) => s.load);
   const executionState = useSim((s) => s.executionState);
   const loadBlueprint = useSim((s) => s.loadBlueprint);
 
@@ -20,6 +27,16 @@ export default function SimulatorPage({ sseConnected }: { sseConnected: boolean 
   const [boardroom, setBoardroom] = useState(false);
   const [blueprint, setBlueprint] = useState(false);
   const [showExecution, setShowExecution] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Hydrate from backend on mount or when the URL id changes.
+  // This is what makes browser-refresh work: the store loads fresh from the DB.
+  useEffect(() => {
+    if (startupId == null) return;
+    if (startup?.id === startupId) return; // already loaded
+    setLoadError(null);
+    load(startupId).catch((e) => setLoadError((e as Error).message));
+  }, [startupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const phase = startup?.currentPhase;
 
@@ -33,6 +50,24 @@ export default function SimulatorPage({ sseConnected }: { sseConnected: boolean 
     await loadBlueprint();
     setBlueprint(true);
   };
+
+  if (loadError) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-400">
+        <p className="text-rose-400 font-medium mb-2">Failed to load startup #{startupId}</p>
+        <p className="text-sm text-slate-500">{loadError}</p>
+        <a href="/" className="mt-4 text-sky-400 hover:text-sky-300 text-sm underline">← Back to home</a>
+      </div>
+    );
+  }
+
+  if (!startup) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+        <span className="animate-pulse">Loading startup…</span>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col overflow-hidden select-none bg-slate-950">
@@ -94,3 +129,4 @@ export default function SimulatorPage({ sseConnected }: { sseConnected: boolean 
     </div>
   );
 }
+

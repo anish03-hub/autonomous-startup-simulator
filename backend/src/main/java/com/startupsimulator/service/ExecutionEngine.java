@@ -93,6 +93,11 @@ public class ExecutionEngine {
         runningState.put(startupId, true);
         pausedState.put(startupId, false);
 
+        // Persist execution state immediately so a restart can recover it.
+        startup.setExecutionDay(1);
+        startup.setExecutionRunning(true);
+        startupRepository.save(startup);
+
         // 4. Broadcast EXECUTION_STARTED
         executionEventService.emitExecutionStarted(startupId, tasks.size());
 
@@ -115,6 +120,10 @@ public class ExecutionEngine {
     public ExecutionStateDto pauseExecution(Long startupId) {
         pausedState.put(startupId, true);
         runningState.put(startupId, false);
+        startupRepository.findById(startupId).ifPresent(s -> {
+            s.setExecutionRunning(false);
+            startupRepository.save(s);
+        });
         executionEventService.emitExecutionPaused(startupId);
         return getExecutionState(startupId);
     }
@@ -123,14 +132,22 @@ public class ExecutionEngine {
     public ExecutionStateDto resumeExecution(Long startupId) {
         pausedState.put(startupId, false);
         runningState.put(startupId, true);
+        startupRepository.findById(startupId).ifPresent(s -> {
+            s.setExecutionRunning(true);
+            startupRepository.save(s);
+        });
         executionEventService.emitExecutionResumed(startupId);
         return getExecutionState(startupId);
     }
 
     @Transactional
     public ExecutionStateDto stepExecution(Long startupId) {
-        int day = currentDays.getOrDefault(startupId, 1) + 1;
+        // Restore from DB if the in-memory state was lost (e.g. after a restart).
+        int day = currentDays.computeIfAbsent(startupId, id -> {
+            return startupRepository.findById(id).map(Startup::getExecutionDay).orElse(1);
+        }) + 1;
         currentDays.put(startupId, day);
+        runningState.put(startupId, true);
 
         List<ExecutionTask> allTasks = taskRepository.findByStartupIdOrderById(startupId);
         if (allTasks.isEmpty()) {
@@ -193,10 +210,19 @@ public class ExecutionEngine {
             Startup startup = startupRepository.findById(startupId).orElse(null);
             if (startup != null) {
                 startup.setSimulationCompleted(true);
+                startup.setExecutionRunning(false);
+                startup.setExecutionDay(day);
                 startupRepository.save(startup);
             }
             double overall = (double) metrics.get("overallProgress");
             executionEventService.emitExecutionCompleted(startupId, overall);
+        } else {
+            // Persist the current day so restart can recover.
+            startupRepository.findById(startupId).ifPresent(s -> {
+                s.setExecutionDay(day);
+                s.setExecutionRunning(true);
+                startupRepository.save(s);
+            });
         }
 
         return getExecutionState(startupId);
@@ -215,10 +241,11 @@ public class ExecutionEngine {
         Startup startup = startupRepository.findById(startupId)
                 .orElseThrow(() -> new IllegalArgumentException("Startup not found: " + startupId));
 
-        int day = currentDays.getOrDefault(startupId, 1);
-        int week = ((day - 1) / 7) + 1;
-        boolean isRunning = runningState.getOrDefault(startupId, false);
+        // Restore from DB when the in-memory map is absent (e.g. after a restart).
+        int day = currentDays.computeIfAbsent(startupId, id -> startup.getExecutionDay());
+        boolean isRunning = runningState.computeIfAbsent(startupId, id -> startup.isExecutionRunning());
         boolean isPaused = pausedState.getOrDefault(startupId, false);
+        int week = ((day - 1) / 7) + 1;
 
         List<ExecutionTask> tasks = taskRepository.findByStartupIdOrderById(startupId);
         List<ExecutionTaskDto> taskDtos = tasks.stream().map(ExecutionTaskDto::from).toList();

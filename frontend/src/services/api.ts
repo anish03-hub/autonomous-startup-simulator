@@ -36,6 +36,8 @@ export const api = {
       body: JSON.stringify({ idea, name: name || undefined }),
     }),
 
+  listStartups: () => req<Startup[]>("/startups"),
+
   getStartup: (id: number) => req<Startup>(`/startups/${id}`),
 
   simulate: (id: number, speed = 1.0) =>

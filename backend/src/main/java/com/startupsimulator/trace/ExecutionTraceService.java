@@ -26,7 +26,7 @@ public class ExecutionTraceService {
     private final ExecutionTraceRepository repository;
     private final ObjectMapper objectMapper;
 
-    private final Map<Long, AtomicInteger> sequenceCounters = new ConcurrentHashMap<>();
+    private Map<Long, AtomicInteger> sequenceCounters = new ConcurrentHashMap<>();
 
     private int nextSequenceNumber(Long startupId) {
         return sequenceCounters.computeIfAbsent(startupId, id -> {
