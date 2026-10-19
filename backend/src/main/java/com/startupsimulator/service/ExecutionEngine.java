@@ -261,19 +261,11 @@ public class ExecutionEngine {
             executionEventService.emitTaskStarted(startupId, task);
         }
 
-        // 3. Simulated Blocker check
-        Optional<ExecutionTask> blockedTask = blockerService.checkForSimulatedBlockers(startupId, day);
-        if (blockedTask.isPresent()) {
-            ExecutionTask task = blockedTask.get();
-            updateAgentState(startupId, task.getDepartment(), AgentState.BLOCKED, "Blocked: " + task.getBlockerReason());
-            executionEventService.emitTaskBlocked(startupId, task);
-        }
-
-        // 4. Calculate updated metrics
+        // 3. Calculate updated metrics
         Map<String, Object> metrics = metricsService.calculateMetrics(startupId, day);
         executionEventService.emitMetricChanged(startupId, metrics);
 
-        // 5. Check execution completion
+        // 4. Check execution completion
         boolean allCompleted = allTasks.stream().allMatch(t -> t.getStatus() == TaskStatus.COMPLETED);
         if (allCompleted && !allTasks.isEmpty()) {
             runningState.put(startupId, false);
@@ -302,7 +294,7 @@ public class ExecutionEngine {
 
     @Transactional
     public ExecutionStateDto resolveTaskBlocker(Long startupId, Long taskId) {
-        ExecutionTask task = blockerService.resolveBlocker(taskId);
+        ExecutionTask task = blockerService.resolveBlocker(startupId, taskId);
         updateAgentState(startupId, task.getDepartment(), AgentState.WORKING, "Resumed work on " + task.getTitle());
         executionEventService.emitTaskStarted(startupId, task);
         if (runningState.getOrDefault(startupId, true) && !pausedState.getOrDefault(startupId, false)) {
