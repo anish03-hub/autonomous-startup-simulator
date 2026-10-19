@@ -140,8 +140,8 @@ class StartupExecutionRecoveryIntegrationTest {
         List<Long> recovered = recoveryService.recoverInterruptedStartups();
 
         assertEquals(List.of(501L), recovered, "Only actively running Phase 2F startup must be recovered");
-        verify(executionEngine).getExecutionState(501L);
-        verify(executionEngine, never()).getExecutionState(502L);
+        verify(executionEngine).resumeExecution(501L);
+        verify(executionEngine, never()).resumeExecution(502L);
         verify(orchestrator, never()).resumeSimulation(anyLong(), anyDouble());
     }
 

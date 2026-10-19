@@ -19,10 +19,18 @@ export default function LandingPage({ onReady }: { onReady: (id: number) => void
   const [idea, setIdea] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [lookupId, setLookupId] = useState("");
 
   // Saved startups list
   const [savedStartups, setSavedStartups] = useState<Startup[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
+
+  const handleOpenById = (e: React.FormEvent) => {
+    e.preventDefault();
+    const idNum = parseInt(lookupId.trim(), 10);
+    if (isNaN(idNum) || idNum <= 0) return;
+    onReady(idNum);
+  };
 
   useEffect(() => {
     api.listStartups()
@@ -137,6 +145,33 @@ export default function LandingPage({ onReady }: { onReady: (id: number) => void
           {error && (
             <p className="mt-3 text-sm text-rose-400">Couldn't start: {error}</p>
           )}
+        </form>
+
+        {/* Reopen by ID */}
+        <form
+          onSubmit={handleOpenById}
+          className="mt-4 glass rounded-2xl p-4 flex items-center gap-3 animate-fade-in-up"
+        >
+          <div className="flex-1">
+            <label className="block text-xs font-mono uppercase tracking-widest text-slate-400 mb-1">
+              Reopen startup by ID
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={lookupId}
+              onChange={(e) => setLookupId(e.target.value)}
+              placeholder="e.g. 2"
+              className="w-full rounded-xl bg-ink-900 border border-white/10 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={busy || !lookupId.trim()}
+            className="self-end rounded-xl px-5 py-2.5 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-40 transition shadow-md shadow-sky-950/50"
+          >
+            Reopen ID →
+          </button>
         </form>
 
         {/* Saved Startups */}

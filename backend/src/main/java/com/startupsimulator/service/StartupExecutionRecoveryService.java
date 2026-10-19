@@ -27,13 +27,22 @@ import java.util.List;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class StartupExecutionRecoveryService {
 
     private final StartupRepository startupRepository;
     private final StartupOrchestrator orchestrator;
     private final ExecutionEngine executionEngine;
     private final StartupEventRepository eventRepository;
+
+    public StartupExecutionRecoveryService(StartupRepository startupRepository,
+                                           StartupOrchestrator orchestrator,
+                                           ExecutionEngine executionEngine,
+                                           StartupEventRepository eventRepository) {
+        this.startupRepository = startupRepository;
+        this.orchestrator = orchestrator;
+        this.executionEngine = executionEngine;
+        this.eventRepository = eventRepository;
+    }
 
     @Value("${app.recovery.enabled:true}")
     private boolean recoveryEnabled = true;
@@ -60,8 +69,9 @@ public class StartupExecutionRecoveryService {
             Long id = startup.getId();
             if (id == null) continue;
 
-            // 1. Exclude completed startups
-            if (startup.isSimulationCompleted() || startup.getCurrentPhase() == SimulationPhase.COMPLETED) {
+            // 1. Exclude completed startups (either explicitly marked COMPLETED or planning-completed when not in execution)
+            if (startup.getCurrentPhase() == SimulationPhase.COMPLETED ||
+               (startup.getCurrentPhase() != SimulationPhase.EXECUTION && startup.isSimulationCompleted())) {
                 log.debug("Startup {} is already completed; skipping recovery.", id);
                 continue;
             }
@@ -80,10 +90,12 @@ public class StartupExecutionRecoveryService {
 
             // 4. Case A: Phase 2F Execution
             if (startup.getCurrentPhase() == SimulationPhase.EXECUTION) {
-                if (startup.isExecutionRunning()) {
+                if (startup.isExecutionRunning() && !executionEngine.isExecutionActive(id)) {
                     log.info("Recovering interrupted Phase 2F execution state for startup {}", id);
-                    executionEngine.getExecutionState(id);
+                    executionEngine.resumeExecution(id);
                     recoveredIds.add(id);
+                } else if (!startup.isExecutionRunning()) {
+                    log.info("Startup {} is in EXECUTION phase but was explicitly paused; skipping recovery.", id);
                 }
                 continue;
             }

@@ -65,10 +65,80 @@ public class ExecutionEngine {
         this.traceService = traceService;
     }
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ExecutionEngine.class);
+
     // In-memory simulation state trackers per startupId
     private final Map<Long, Integer> currentDays = new ConcurrentHashMap<>();
     private final Map<Long, Boolean> runningState = new ConcurrentHashMap<>();
     private final Map<Long, Boolean> pausedState = new ConcurrentHashMap<>();
+    private final Set<Long> activeExecutionWorkers = ConcurrentHashMap.newKeySet();
+
+    @org.springframework.beans.factory.annotation.Value("${app.simulation.tick-interval-ms:900}")
+    private long tickIntervalMs = 900;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.beans.factory.annotation.Qualifier("simulationScheduler")
+    private java.util.concurrent.Executor asyncExecutor;
+
+    public void setAsyncExecutor(java.util.concurrent.Executor asyncExecutor) {
+        this.asyncExecutor = asyncExecutor;
+    }
+
+    public void setTickIntervalMs(long tickIntervalMs) {
+        this.tickIntervalMs = tickIntervalMs;
+    }
+
+    public boolean isExecutionActive(Long startupId) {
+        return activeExecutionWorkers.contains(startupId);
+    }
+
+    public synchronized void startExecutionWorker(Long startupId) {
+        if (!activeExecutionWorkers.add(startupId)) {
+            log.info("Execution worker already running for startup {}", startupId);
+            return;
+        }
+        Runnable loopTask = () -> runAutonomousExecution(startupId);
+        if (asyncExecutor != null) {
+            asyncExecutor.execute(loopTask);
+        } else {
+            Thread worker = new Thread(loopTask, "exec-worker-" + startupId);
+            worker.setDaemon(true);
+            worker.start();
+        }
+    }
+
+    private void runAutonomousExecution(Long startupId) {
+        try {
+            log.info("Autonomous execution loop started for startup {}", startupId);
+            while (runningState.getOrDefault(startupId, false) && !pausedState.getOrDefault(startupId, false)) {
+                ExecutionStateDto state = stepExecution(startupId);
+                if (state.isCompleted()) {
+                    log.info("Autonomous execution completed for startup {}", startupId);
+                    break;
+                }
+                if (state.activeBlockerCount() > 0) {
+                    List<ExecutionTask> tasks = taskRepository.findByStartupIdOrderById(startupId);
+                    boolean hasWorkingTasks = tasks.stream()
+                            .anyMatch(t -> t.getStatus() == TaskStatus.IN_PROGRESS);
+                    if (!hasWorkingTasks) {
+                        log.info("All active tasks blocked for startup {}; waiting for blocker resolution.", startupId);
+                        break;
+                    }
+                }
+                try {
+                    Thread.sleep(Math.max(50L, tickIntervalMs));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.warn("Execution worker interrupted for startup {}", startupId);
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            log.error("Autonomous execution failed for startup {}", startupId, e);
+        } finally {
+            activeExecutionWorkers.remove(startupId);
+        }
+    }
 
     @Transactional
     public ExecutionStateDto startExecution(Long startupId) {
@@ -87,16 +157,14 @@ public class ExecutionEngine {
         // 3. Update startup phase to EXECUTION
         startup.setCurrentPhase(SimulationPhase.EXECUTION);
         startup.setSimulationStarted(true);
+        startup.setSimulationCompleted(false);
+        startup.setExecutionDay(1);
+        startup.setExecutionRunning(true);
         startupRepository.save(startup);
 
         currentDays.put(startupId, 1);
         runningState.put(startupId, true);
         pausedState.put(startupId, false);
-
-        // Persist execution state immediately so a restart can recover it.
-        startup.setExecutionDay(1);
-        startup.setExecutionRunning(true);
-        startupRepository.save(startup);
 
         // 4. Broadcast EXECUTION_STARTED
         executionEventService.emitExecutionStarted(startupId, tasks.size());
@@ -112,6 +180,8 @@ public class ExecutionEngine {
         // Emit initial metrics
         Map<String, Object> metrics = metricsService.calculateMetrics(startupId, 1);
         executionEventService.emitMetricChanged(startupId, metrics);
+
+        startExecutionWorker(startupId);
 
         return getExecutionState(startupId);
     }
@@ -137,6 +207,7 @@ public class ExecutionEngine {
             startupRepository.save(s);
         });
         executionEventService.emitExecutionResumed(startupId);
+        startExecutionWorker(startupId);
         return getExecutionState(startupId);
     }
 
@@ -209,6 +280,7 @@ public class ExecutionEngine {
             pausedState.put(startupId, false);
             Startup startup = startupRepository.findById(startupId).orElse(null);
             if (startup != null) {
+                startup.setCurrentPhase(SimulationPhase.COMPLETED);
                 startup.setSimulationCompleted(true);
                 startup.setExecutionRunning(false);
                 startup.setExecutionDay(day);
@@ -233,6 +305,9 @@ public class ExecutionEngine {
         ExecutionTask task = blockerService.resolveBlocker(taskId);
         updateAgentState(startupId, task.getDepartment(), AgentState.WORKING, "Resumed work on " + task.getTitle());
         executionEventService.emitTaskStarted(startupId, task);
+        if (runningState.getOrDefault(startupId, true) && !pausedState.getOrDefault(startupId, false)) {
+            startExecutionWorker(startupId);
+        }
         return getExecutionState(startupId);
     }
 

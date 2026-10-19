@@ -16,7 +16,15 @@ export default function TopBar({
   return (
     <header className="glass border-b border-white/5 px-5 py-3 flex items-center gap-6">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="grid place-items-center h-9 w-9 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 text-white font-bold">
+        <a
+          href="/"
+          className="text-xs text-slate-400 hover:text-white transition flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-lg hover:bg-slate-800 border border-white/5"
+          title="Return to Saved Startups"
+        >
+          ← Startups
+        </a>
+        <div className="w-px h-5 bg-white/10" />
+        <div className="grid place-items-center h-9 w-9 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 text-white font-bold shrink-0">
           {startup.name.slice(0, 1)}
         </div>
         <div className="min-w-0">

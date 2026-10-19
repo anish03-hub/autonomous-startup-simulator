@@ -10,10 +10,13 @@ function SimulatorPageWrapper() {
   const onEvent = useSim((s) => s.onEvent);
   const { id } = useParams<{ id: string }>();
 
-  const numericId = id ? parseInt(id, 10) : null;
+  const numericId = id && !isNaN(Number(id)) ? Number(id) : null;
+  if (numericId == null) {
+    return <Navigate to="/" replace />;
+  }
   const activeId = startup?.id ?? numericId;
 
-  const { connected } = useEventStream(activeId ?? null, onEvent);
+  const { connected } = useEventStream(activeId, onEvent);
 
   return <SimulatorPage sseConnected={connected} startupId={numericId} />;
 }

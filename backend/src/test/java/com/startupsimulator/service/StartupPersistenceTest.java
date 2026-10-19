@@ -69,4 +69,61 @@ class StartupPersistenceTest {
         assertEquals(1, found.getExecutionDay(), "Default execution day must be 1");
         assertFalse(found.isExecutionRunning(), "Execution must not be running by default");
     }
+
+    @Test
+    void multipleStartups_remainIsolatedInDatabase() {
+        Startup a = startupRepository.save(new Startup("CompanyA", "Fintech app"));
+        Startup b = startupRepository.save(new Startup("CompanyB", "Healthtech scanner"));
+
+        assertNotEquals(a.getId(), b.getId());
+
+        a.setCurrentPhase(SimulationPhase.EXECUTION);
+        a.setExecutionDay(10);
+        a.setExecutionRunning(true);
+        startupRepository.save(a);
+
+        Startup reloadedB = startupRepository.findById(b.getId()).orElseThrow();
+        assertEquals(SimulationPhase.IDEA, reloadedB.getCurrentPhase());
+        assertEquals(1, reloadedB.getExecutionDay());
+        assertFalse(reloadedB.isExecutionRunning());
+
+        Startup reloadedA = startupRepository.findById(a.getId()).orElseThrow();
+        assertEquals(SimulationPhase.EXECUTION, reloadedA.getCurrentPhase());
+        assertEquals(10, reloadedA.getExecutionDay());
+        assertTrue(reloadedA.isExecutionRunning());
+    }
+
+    @Test
+    void startup_preservesAllLifecycleAndMetricsFields() {
+        Startup s = new Startup("MetricsCo", "Comprehensive lifecycle test");
+        s.setProblem("Customer pain point");
+        s.setSolution("AI solution");
+        s.setExecutiveSummary("Executive vision");
+        s.setStrategicObjectives("Goal 1\nGoal 2");
+        s.setOverallProgress(85);
+        s.setMvpProgress(90);
+        s.setTechnicalFeasibility(80);
+        s.setMarketReadiness(75);
+        s.setFinancialHealth(88);
+        s.setBudgetRemaining(45000.0);
+        s.setRunwayMonths(11.5);
+        s.setCurrentPhase(SimulationPhase.COMPLETED);
+        s.setSimulationStarted(true);
+        s.setSimulationCompleted(true);
+        s.setExecutionRunning(false);
+
+        Startup saved = startupRepository.save(s);
+        Startup found = startupRepository.findById(saved.getId()).orElseThrow();
+
+        assertEquals("Customer pain point", found.getProblem());
+        assertEquals("AI solution", found.getSolution());
+        assertEquals("Executive vision", found.getExecutiveSummary());
+        assertEquals(85, found.getOverallProgress());
+        assertEquals(90, found.getMvpProgress());
+        assertEquals(45000.0, found.getBudgetRemaining());
+        assertEquals(11.5, found.getRunwayMonths());
+        assertTrue(found.isSimulationCompleted());
+        assertFalse(found.isExecutionRunning());
+        assertEquals(SimulationPhase.COMPLETED, found.getCurrentPhase());
+    }
 }

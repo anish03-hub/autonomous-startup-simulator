@@ -70,7 +70,7 @@ export const useSim = create<SimState>((set, get) => ({
   },
 
   async load(id) {
-    const [startup, agents, tasks, messages, debates, events, plans, executionState] = await Promise.all([
+    const [startup, agents, tasks, messages, debates, events, plans, executionState, blueprint] = await Promise.all([
       api.getStartup(id),
       api.agents(id),
       api.tasks(id),
@@ -79,8 +79,9 @@ export const useSim = create<SimState>((set, get) => ({
       api.events(id),
       api.plans(id),
       api.getExecutionState(id).catch(() => null),
+      api.blueprint(id).catch(() => null),
     ]);
-    set({ startup, agents, tasks, messages, debates, events, plans, executionState });
+    set({ startup, agents, tasks, messages, debates, events, plans, executionState, blueprint });
   },
 
   async startSimulation(speed = 1.0) {
