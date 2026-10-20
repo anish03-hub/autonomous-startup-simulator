@@ -364,7 +364,7 @@ function Employee3DComponent({
       {/* Floating 3D Blocker Badge */}
       {activity === "BLOCKED" && (
         <Html position={[0, 1.45, 0]} center distanceFactor={8} zIndexRange={[10, 0]}>
-          <div className="bg-rose-950/95 text-rose-300 px-2.5 py-1 rounded-lg border border-rose-500/60 text-[11px] font-bold shadow-xl animate-bounce pointer-events-none text-center whitespace-nowrap will-change-transform">
+          <div className="bg-rose-950/95 text-rose-300 backdrop-blur-md px-2.5 py-1 rounded-lg border border-rose-500/60 text-[11px] font-bold shadow-xl animate-bounce pointer-events-none text-center whitespace-nowrap will-change-transform">
             ⚠️ BLOCKED
           </div>
         </Html>

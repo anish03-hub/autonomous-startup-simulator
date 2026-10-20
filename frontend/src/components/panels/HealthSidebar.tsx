@@ -1,6 +1,7 @@
 import { useSim } from "../../store/simulationStore";
 import { money } from "../../lib/theme";
 import type { SimulationPhase } from "../../types";
+import { isExecutionLifecycle } from "../../lib/lifecycle";
 
 function Meter({ label, value, hex }: { label: string; value: number; hex: string }) {
   return (
@@ -33,8 +34,6 @@ const PHASE_PROGRESS: Record<SimulationPhase, number> = {
   COMPLETED: 100,
   EXECUTION: 100,
 };
-
-import { isExecutionLifecycle } from "../../lib/lifecycle";
 
 export default function HealthSidebar() {
   const startup = useSim((s) => s.startup);

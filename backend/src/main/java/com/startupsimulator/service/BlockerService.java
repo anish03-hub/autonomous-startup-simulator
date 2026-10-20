@@ -11,9 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
+ * Manages execution risk events, blockers, and resolution flows.
  * Explicit blocker resolution. Calendar days alone are not evidence of a risk
  * or an unmet dependency; genuine blockers remain until explicitly resolved.
  */
@@ -31,6 +33,41 @@ public class BlockerService {
     public BlockerService(ExecutionTaskRepository taskRepository, ExecutionTraceService traceService) {
         this.taskRepository = taskRepository;
         this.traceService = traceService;
+    }
+
+    @Transactional
+    public Optional<ExecutionTask> checkForSimulatedBlockers(Long startupId, int currentDay) {
+        List<ExecutionTask> inProgress = taskRepository.findByStartupIdAndStatus(startupId, TaskStatus.IN_PROGRESS);
+
+        if (inProgress.isEmpty()) {
+            return Optional.empty();
+        }
+
+        // Deterministic risk trigger condition (e.g. Day 8 or Day 18) to simulate realistic project risks
+        if (currentDay == 8 || currentDay == 18) {
+            ExecutionTask target = inProgress.get(0);
+            TaskStatus oldStatus = target.getStatus();
+            target.setStatus(TaskStatus.BLOCKED);
+            String reason = target.getDepartment() + " execution blocked on Day " + currentDay +
+                    ": Dependencies delayed due to technical risk review.";
+            target.setBlockerReason(reason);
+            taskRepository.save(target);
+            if (traceService != null) {
+                traceService.recordTaskStateChange(startupId, null,
+                        target.getDepartment() != null ? target.getDepartment().name() : null,
+                        target.getId(), target.getTitle(), oldStatus, TaskStatus.BLOCKED, reason);
+            }
+            return Optional.of(target);
+        }
+
+        return Optional.empty();
+    }
+
+    @Transactional
+    public ExecutionTask resolveBlocker(Long taskId) {
+        ExecutionTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + taskId));
+        return resolveBlocker(task.getStartupId(), taskId);
     }
 
     @Transactional

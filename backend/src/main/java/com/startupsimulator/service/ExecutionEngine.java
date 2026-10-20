@@ -64,7 +64,6 @@ public class ExecutionEngine {
         this.executionEventService = executionEventService;
         this.traceService = traceService;
     }
-
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ExecutionEngine.class);
 
     // In-memory simulation state trackers per startupId
