@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { AgentType } from "../types";
 import { useSim } from "../store/simulationStore";
 import TopBar from "../components/TopBar";
@@ -10,6 +10,8 @@ import DepartmentDetailPanel from "../components/DepartmentDetailPanel";
 import BoardroomView from "../components/debate/BoardroomView";
 import BlueprintView from "../components/blueprint/BlueprintView";
 import ExecutionDashboard from "../components/execution/ExecutionDashboard";
+import AgentWorkHistoryModal from "../components/history/AgentWorkHistoryModal";
+import GeneratedAppModal from "../components/app/GeneratedAppModal";
 
 export default function SimulatorPage({
   sseConnected,
@@ -27,7 +29,19 @@ export default function SimulatorPage({
   const [boardroom, setBoardroom] = useState(false);
   const [blueprint, setBlueprint] = useState(false);
   const [showExecution, setShowExecution] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyAgent, setHistoryAgent] = useState<AgentType | "ALL">("ALL");
+  const [appModalOpen, setAppModalOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const openHistory = (agent: AgentType | "ALL" = "ALL") => {
+    setHistoryAgent(agent);
+    setHistoryOpen(true);
+  };
+
+  const handleOpenBoardroom = useCallback(() => {
+    setBoardroom(true);
+  }, []);
 
   // Hydrate from backend on mount or when the URL id changes.
   // This is what makes browser-refresh work: the store loads fresh from the DB.
@@ -71,7 +85,12 @@ export default function SimulatorPage({
 
   return (
     <div className="h-screen flex flex-col overflow-hidden select-none bg-slate-950">
-      <TopBar sseConnected={sseConnected} onOpenBlueprint={openBlueprint} />
+      <TopBar
+        sseConnected={sseConnected}
+        onOpenBlueprint={openBlueprint}
+        onOpenAgentHistory={() => openHistory("ALL")}
+        onOpenGeneratedApp={() => setAppModalOpen(true)}
+      />
 
       <div className="flex-1 flex min-h-0 relative">
         {/* Left sidebar: Task Board */}
@@ -83,7 +102,7 @@ export default function SimulatorPage({
           <div className="flex-1 relative min-h-0">
             <StartupOffice3D
               onSelectDepartment={setDept}
-              onOpenBoardroom={() => setBoardroom(true)}
+              onOpenBoardroom={handleOpenBoardroom}
             />
 
             {startup?.simulationCompleted && !showExecution && (
@@ -95,15 +114,35 @@ export default function SimulatorPage({
               </button>
             )}
 
-            {/* Execution Dashboard Overlay Toggle */}
-            {(startup?.simulationCompleted || executionState || phase === "EXECUTION") && (
+            {/* Bottom-left quick actions: Agent History + Generated App + Execution Drawer */}
+            <div className="absolute bottom-3 left-4 flex items-center gap-2 z-20">
               <button
-                onClick={() => setShowExecution(!showExecution)}
-                className="absolute bottom-3 left-4 rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-900/90 backdrop-blur-md text-emerald-400 border border-emerald-500/40 shadow-xl hover:bg-slate-800 transition z-20 flex items-center gap-1.5"
+                onClick={() => openHistory("ALL")}
+                className="rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-900/90 backdrop-blur-md text-indigo-300 border border-indigo-500/40 shadow-xl hover:bg-slate-800 hover:text-white transition flex items-center gap-1.5"
+                title="Inspect detailed Agent Work History across all 4 departments"
               >
-                🚀 {showExecution ? "Hide Execution Drawer" : "Show Execution Drawer"}
+                <span>📜</span>
+                <span>Agent Work History</span>
               </button>
-            )}
+
+              <button
+                onClick={() => setAppModalOpen(true)}
+                className="rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-900/90 backdrop-blur-md text-sky-300 border border-sky-500/40 shadow-xl hover:bg-slate-800 hover:text-white transition flex items-center gap-1.5"
+                title="Open Generated Web Application workspace, file inspector, and preview"
+              >
+                <span>💻</span>
+                <span>Generated App</span>
+              </button>
+
+              {(startup?.simulationCompleted || executionState || phase === "EXECUTION") && (
+                <button
+                  onClick={() => setShowExecution(!showExecution)}
+                  className="rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-900/90 backdrop-blur-md text-emerald-400 border border-emerald-500/40 shadow-xl hover:bg-slate-800 transition flex items-center gap-1.5"
+                >
+                  🚀 {showExecution ? "Hide Execution Drawer" : "Show Execution Drawer"}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Collapsible Execution Dashboard Drawer */}
@@ -121,10 +160,23 @@ export default function SimulatorPage({
         </aside>
 
         {dept && (
-          <DepartmentDetailPanel type={dept} onClose={() => setDept(null)} />
+          <DepartmentDetailPanel
+            type={dept}
+            onClose={() => setDept(null)}
+            onOpenWorkHistory={openHistory}
+          />
         )}
         {boardroom && <BoardroomView onClose={() => setBoardroom(false)} />}
         {blueprint && <BlueprintView onClose={() => setBlueprint(false)} />}
+        {historyOpen && (
+          <AgentWorkHistoryModal
+            initialAgent={historyAgent}
+            onClose={() => setHistoryOpen(false)}
+          />
+        )}
+        {appModalOpen && (
+          <GeneratedAppModal onClose={() => setAppModalOpen(false)} />
+        )}
       </div>
     </div>
   );

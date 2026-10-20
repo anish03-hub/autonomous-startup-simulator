@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AgentRecoveryEngine {
 
     private final LLMService llm;
@@ -31,6 +30,14 @@ public class AgentRecoveryEngine {
     private final AgentInbox agentInbox;
     private final EventService eventService;
     private final ExecutionTraceService traceService;
+
+    public AgentRecoveryEngine(LLMService llm, LlmProperties llmProperties, AgentInbox agentInbox, EventService eventService, ExecutionTraceService traceService) {
+        this.llm = llm;
+        this.llmProperties = llmProperties;
+        this.agentInbox = agentInbox;
+        this.eventService = eventService;
+        this.traceService = traceService;
+    }
 
     // Track active recovery attempts per (startupId, taskOrAction) to enforce maxAttempts = 1 (no recursion / infinite loops)
     private Set<String> activeRecoveries = ConcurrentHashMap.newKeySet();

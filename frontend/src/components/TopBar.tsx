@@ -4,9 +4,13 @@ import { PHASES } from "../lib/theme";
 export default function TopBar({
   sseConnected,
   onOpenBlueprint,
+  onOpenAgentHistory,
+  onOpenGeneratedApp,
 }: {
   sseConnected: boolean;
   onOpenBlueprint: () => void;
+  onOpenAgentHistory?: () => void;
+  onOpenGeneratedApp?: () => void;
 }) {
   const startup = useSim((s) => s.startup);
   if (!startup) return null;
@@ -73,6 +77,26 @@ export default function TopBar({
           />
           {sseConnected ? "Live" : "Offline"}
         </span>
+        {onOpenAgentHistory && (
+          <button
+            onClick={onOpenAgentHistory}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/40 hover:bg-indigo-500/30 transition flex items-center gap-1.5 shadow-sm"
+            title="Inspect Agent Work History, tools, and execution traces"
+          >
+            <span>📜</span>
+            <span>Agent History</span>
+          </button>
+        )}
+        {onOpenGeneratedApp && (
+          <button
+            onClick={onOpenGeneratedApp}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold bg-sky-500/20 text-sky-300 ring-1 ring-sky-500/40 hover:bg-sky-500/30 transition flex items-center gap-1.5 shadow-sm"
+            title="Inspect generated real web application, files, and live preview"
+          >
+            <span>💻</span>
+            <span>Generated App</span>
+          </button>
+        )}
         <button
           onClick={onOpenBlueprint}
           disabled={!startup.simulationCompleted}
