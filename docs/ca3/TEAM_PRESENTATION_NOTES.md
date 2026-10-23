@@ -46,3 +46,11 @@ The orchestrator evaluates the simulation state and can choose to run an agent, 
 - **REAL:** Uses an LLM provider for reasoning; provider failures are reported instead of inventing a result.
 
 For a live presentation, confirm the selected mode and environment configuration before starting.
+
+## Suggested demo flow
+
+1. Introduce a sample startup idea and explain the simulation goal.
+2. Show the department agents and their initial analyses.
+3. Highlight one agent message or domain-tool result.
+4. Show how orchestration chooses a next step, including a debate if one occurs.
+5. Summarize the resulting startup blueprint and invite questions.
