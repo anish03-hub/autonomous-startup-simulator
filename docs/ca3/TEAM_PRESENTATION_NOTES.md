@@ -35,3 +35,7 @@ Agents can send addressed messages to specific teammates. These messages provide
 ## Tools and memory
 
 The README lists domain tools for financial calculations, development-effort estimation, and pricing/revenue projections. Agents also have private memory, while shared startup memory can retain context that is useful across departments and simulation steps.
+
+## Dynamic orchestration and replanning
+
+The orchestrator evaluates the simulation state and can choose to run an agent, start a debate, or complete the analysis. When an execution task is blocked, the system can validate a proposed plan change and resume with newly executable work.
