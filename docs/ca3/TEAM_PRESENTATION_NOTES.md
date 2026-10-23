@@ -27,3 +27,7 @@ The simulator models an early-stage startup through coordinated virtual departme
 - Agents can use domain tools for calculations and estimation.
 - Private agent memory and shared startup memory help preserve context.
 - Orchestration can select the next action dynamically rather than following a fixed department sequence.
+
+## Inter-agent communication
+
+Agents can send addressed messages to specific teammates. These messages provide a way to request information, challenge assumptions, and coordinate work across departments. Mention that communication is represented in the simulation rather than being limited to a static sequence of scripted steps.
