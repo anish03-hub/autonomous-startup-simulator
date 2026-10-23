@@ -31,3 +31,7 @@ The simulator models an early-stage startup through coordinated virtual departme
 ## Inter-agent communication
 
 Agents can send addressed messages to specific teammates. These messages provide a way to request information, challenge assumptions, and coordinate work across departments. Mention that communication is represented in the simulation rather than being limited to a static sequence of scripted steps.
+
+## Tools and memory
+
+The README lists domain tools for financial calculations, development-effort estimation, and pricing/revenue projections. Agents also have private memory, while shared startup memory can retain context that is useful across departments and simulation steps.
