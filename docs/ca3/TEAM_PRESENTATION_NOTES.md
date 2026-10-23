@@ -69,3 +69,11 @@ Suggested division for a four-person presentation:
 - **Presenter 4:** Technology overview, testing status, and questions.
 
 For a smaller team, combine adjacent sections; for a larger team, split the demo and architecture topics.
+
+## Presenter checklist
+
+- Verify the frontend and backend prerequisites in the project README.
+- Choose the demo mode and confirm required environment settings.
+- Use a prepared sample startup idea and keep a backup screenshot or explanation ready.
+- Rehearse transitions so each speaker knows when to hand off.
+- Describe test counts and project status as stated in the README at presentation time; they may change.
