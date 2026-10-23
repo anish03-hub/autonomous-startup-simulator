@@ -39,3 +39,10 @@ The README lists domain tools for financial calculations, development-effort est
 ## Dynamic orchestration and replanning
 
 The orchestrator evaluates the simulation state and can choose to run an agent, start a debate, or complete the analysis. When an execution task is blocked, the system can validate a proposed plan change and resume with newly executable work.
+
+## Demonstration modes
+
+- **SCRIPTED_DEMO:** A deterministic, offline option for a repeatable walkthrough without external LLM calls.
+- **REAL:** Uses an LLM provider for reasoning; provider failures are reported instead of inventing a result.
+
+For a live presentation, confirm the selected mode and environment configuration before starting.
