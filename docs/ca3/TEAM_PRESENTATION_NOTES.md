@@ -13,3 +13,10 @@ Use this outline to present the Autonomous Virtual Startup Simulator. Adapt the 
 ## Project overview
 
 The simulator models an early-stage startup through coordinated virtual departments. A founder provides a startup idea, and specialized agents analyze it and contribute to a startup blueprint. The repository describes a React and TypeScript frontend alongside a Java 21 and Spring Boot backend.
+
+## Department agents
+
+- **CEO:** Sets direction, synthesizes cross-department recommendations, and coordinates strategic decisions.
+- **Development:** Proposes architecture, estimates effort, and identifies technical risks.
+- **Marketing:** Defines target audiences, positioning, acquisition channels, and growth plans.
+- **Finance:** Evaluates budgets, runway, pricing, and unit economics.
