@@ -20,3 +20,10 @@ The simulator models an early-stage startup through coordinated virtual departme
 - **Development:** Proposes architecture, estimates effort, and identifies technical risks.
 - **Marketing:** Defines target audiences, positioning, acquisition channels, and growth plans.
 - **Finance:** Evaluates budgets, runway, pricing, and unit economics.
+
+## Capabilities to highlight
+
+- Agents reason about their areas of responsibility and can communicate with other agents.
+- Agents can use domain tools for calculations and estimation.
+- Private agent memory and shared startup memory help preserve context.
+- Orchestration can select the next action dynamically rather than following a fixed department sequence.
