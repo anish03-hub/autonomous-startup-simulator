@@ -54,3 +54,7 @@ For a live presentation, confirm the selected mode and environment configuration
 3. Highlight one agent message or domain-tool result.
 4. Show how orchestration chooses a next step, including a debate if one occurs.
 5. Summarize the resulting startup blueprint and invite questions.
+
+## Technical overview
+
+The project README identifies Java 21, Spring Boot, Spring Data JPA, and Maven in the backend, and React, TypeScript, and Vite in the frontend. It also describes REST endpoints and server-sent events as part of the application architecture.
