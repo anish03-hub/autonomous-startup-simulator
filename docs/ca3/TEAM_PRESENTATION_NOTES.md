@@ -58,3 +58,14 @@ For a live presentation, confirm the selected mode and environment configuration
 ## Technical overview
 
 The project README identifies Java 21, Spring Boot, Spring Data JPA, and Maven in the backend, and React, TypeScript, and Vite in the frontend. It also describes REST endpoints and server-sent events as part of the application architecture.
+
+## Team speaking roles
+
+Suggested division for a four-person presentation:
+
+- **Presenter 1:** Project overview and motivation.
+- **Presenter 2:** Department agents, communication, and tools.
+- **Presenter 3:** Orchestration, replanning, and the demo.
+- **Presenter 4:** Technology overview, testing status, and questions.
+
+For a smaller team, combine adjacent sections; for a larger team, split the demo and architecture topics.
